@@ -23,9 +23,16 @@ export default function Navbar({ activeTab, setActiveTab, casaSeleccionada, setC
     <header className="sticky top-0 z-50 border-b border-slate-800/80 bg-slate-900/85 backdrop-blur-xl">
       <div className="mx-auto max-w-7xl px-3 py-3 sm:px-5 lg:px-8">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          
+          {/* SECCIÓN MODIFICADA: Logo y Título Rediseñado */}
           <div className="flex min-w-0 items-center gap-3">
+            <img 
+              src="/logo-navbar.png" 
+              alt="Logo Control de Servicios" 
+              className="w-9 h-9 sm:w-11 sm:h-11 object-contain drop-shadow-md" 
+            />
             <div className="min-w-0">
-              <h1 className="truncate bg-gradient-to-r from-blue-400 via-cyan-300 to-amber-300 bg-clip-text text-base font-black text-transparent sm:text-xl">
+              <h1 className="truncate bg-gradient-to-r from-blue-400 via-indigo-400 to-emerald-400 bg-clip-text text-base font-black tracking-tight text-transparent sm:text-xl">
                 Control de Servicios
               </h1>
               {casaSeleccionada && (
@@ -35,6 +42,7 @@ export default function Navbar({ activeTab, setActiveTab, casaSeleccionada, setC
               )}
             </div>
           </div>
+          {/* FIN SECCIÓN MODIFICADA */}
 
           <nav className="flex items-center justify-end gap-2.5 sm:gap-3">
             <button

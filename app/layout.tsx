@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -12,7 +12,6 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// ¡Única declaración de metadata con tu logo!
 export const metadata: Metadata = {
   title: "Control de Servicios",
   description: "Gestión de lecturas de agua, luz y gas",
@@ -20,15 +19,21 @@ export const metadata: Metadata = {
     icon: '/logo-ios.png',
     apple: '/logo-ios.png',
   },
+  openGraph: {
+    images: ['/logo-ios.png'], // ¡Esto hace que el logo aparezca en WhatsApp!
+  },
+  appleWebApp: {
+    statusBarStyle: "black-translucent", // ¡Elimina la franja blanca en iPhone!
+  }
 };
 
-// Bloqueos móviles y color de la barra
-export const viewport = {
+export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
   themeColor: "#020817",
+  viewportFit: "cover", // Expande la app hasta el borde absoluto
 };
 
 export default function RootLayout({
