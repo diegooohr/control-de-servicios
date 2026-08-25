@@ -12,22 +12,30 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// ¡Única declaración de metadata con tu logo!
 export const metadata: Metadata = {
   title: "Control de Servicios",
   description: "Gestión de lecturas de agua, luz y gas",
-};
-
-// ¡NUEVO! Configuración para la barra del navegador y bloqueo de zoom
-export const metadata = {
-  title: "Control de Servicios",
-  description: "Gestión de lecturas de agua, luz y gas",
   icons: {
-    icon: '/logo-ios.png',       /* Logo para la pestaña del navegador */
-    apple: '/logo-ios.png',      /* Logo para la pantalla de inicio en celulares */
+    icon: '/logo-ios.png',
+    apple: '/logo-ios.png',
   },
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+// Bloqueos móviles y color de la barra
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: "#020817",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
     <html
       lang="es"
