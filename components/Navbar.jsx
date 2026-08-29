@@ -20,7 +20,7 @@ export default function Navbar({ activeTab, setActiveTab, casaSeleccionada, setC
   ];
 
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-800/80 bg-slate-900/85 backdrop-blur-xl">
+    <header className="sticky top-0 z-50 border-b border-slate-800/80 bg-slate-900/85 backdrop-blur-xl pt-[env(safe-area-inset-top)]">
       <div className="mx-auto max-w-7xl px-3 py-3 sm:px-5 lg:px-8">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           
