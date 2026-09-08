@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import Modal from './Modal';
 
 const hoy = () => new Date().toISOString().slice(0, 10);
 
@@ -259,27 +260,26 @@ export default function Contratos({ casaSeleccionada }) {
       )}
 
       {showModal && (
-        <div className="fixed inset-0 z-[60] bg-slate-950/75 p-3 backdrop-blur-sm sm:p-5">
-          <div className="mx-auto flex min-h-full items-center justify-center">
-            <div className="w-[min(92vw,40rem)] overflow-hidden rounded-2xl border border-slate-700/80 bg-slate-800/95 shadow-[0_30px_80px_rgba(2,6,23,0.9)] ring-1 ring-white/5">
-              <div className="border-b border-slate-700/80 bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800/90 px-4 py-3 sm:px-5">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-blue-300/80">Contrato</p>
-                    <h3 className="text-lg font-bold text-white sm:text-xl">{editingId ? 'Editar Contrato' : 'Nuevo Contrato'}</h3>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowModal(false)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-xl leading-none text-slate-400 transition hover:border-slate-500 hover:bg-slate-700 hover:text-white"
-                    aria-label="Cerrar modal"
-                  >
-                    &times;
-                  </button>
+        <Modal onClose={() => setShowModal(false)}>
+          <div className="my-auto flex max-h-[90vh] w-[min(92vw,40rem)] flex-col overflow-hidden rounded-2xl border border-slate-700/80 bg-slate-800/95 shadow-[0_30px_80px_rgba(2,6,23,0.9)] ring-1 ring-white/5">
+            <div className="shrink-0 border-b border-slate-700/80 bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800/90 px-4 py-3 sm:px-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-blue-300/80">Contrato</p>
+                  <h3 className="text-lg font-bold text-white sm:text-xl">{editingId ? 'Editar Contrato' : 'Nuevo Contrato'}</h3>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-xl leading-none text-slate-400 transition hover:border-slate-500 hover:bg-slate-700 hover:text-white"
+                  aria-label="Cerrar modal"
+                >
+                  &times;
+                </button>
               </div>
+            </div>
 
-              <form onSubmit={guardarContrato} className="max-h-[75vh] space-y-4 overflow-y-auto p-4 sm:p-6">
+              <form onSubmit={guardarContrato} className="space-y-4 overflow-y-auto p-4 sm:p-6">
                 <div>
                   <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Inmueble *</label>
                   <select
@@ -394,9 +394,8 @@ export default function Contratos({ casaSeleccionada }) {
                   </button>
                 </div>
               </form>
-            </div>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

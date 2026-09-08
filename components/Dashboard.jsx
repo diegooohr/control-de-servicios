@@ -97,11 +97,11 @@ export default function Dashboard({ setActiveTab, setCasaSeleccionada }) {
 
       {/* Alertas de contratos por vencer */}
       <div className="rounded-2xl border border-slate-700 bg-slate-800/90 p-5 shadow-xl shadow-slate-950/20 sm:p-6">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h3 className="flex items-center gap-2 text-lg font-bold text-white">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h3 className="flex flex-wrap items-center gap-x-2 gap-y-1 text-lg font-bold text-white">
             ⚠️ Contratos por Vencer <span className="text-sm font-normal text-slate-400">(próximos 30 días)</span>
           </h3>
-          <button onClick={irAContratos} className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white">
+          <button onClick={irAContratos} className="self-start rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white sm:self-auto">
             Ver todos →
           </button>
         </div>

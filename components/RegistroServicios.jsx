@@ -152,11 +152,11 @@ export default function RegistroServicios({ casaSeleccionada }) {
 
   const renderCargos = (servicio, cargos) => (
     <div className="mt-4 border-t border-slate-700 pt-4">
-      <div className="flex justify-between items-center mb-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <p className="text-sm font-medium text-slate-300">Cargos Adicionales</p>
-        <div className="flex gap-2">
-          <button type="button" onClick={() => agregarCargo(servicio)} className="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1.5 rounded text-white transition-colors">+ Añadir</button>
-          <button type="button" onClick={guardarCargosEnBD} className="text-xs bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 rounded text-white flex items-center gap-1 shadow-md">💾 Guardar Config</button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => agregarCargo(servicio)} className="whitespace-nowrap text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1.5 rounded text-white transition-colors">+ Añadir</button>
+          <button type="button" onClick={guardarCargosEnBD} className="whitespace-nowrap text-xs bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 rounded text-white flex items-center gap-1 shadow-md">💾 Guardar</button>
         </div>
       </div>
       {cargos.map((cargo, index) => (
@@ -197,7 +197,7 @@ export default function RegistroServicios({ casaSeleccionada }) {
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-3 lg:items-stretch">
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-3 xl:items-stretch">
             <div className="group rounded-[22px] border border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-slate-900 to-slate-900/80 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition duration-200 hover:-translate-y-1 hover:border-amber-400/50 hover:shadow-[0_18px_30px_rgba(245,158,11,0.08)]">
               <h3 className="mb-3 flex items-center gap-2 text-base font-bold text-amber-400">⚡ Luz (kWh)</h3>
               <div className="space-y-3">
