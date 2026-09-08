@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { supabase } from '../lib/supabaseClient';
 import { descargarReciboPDF } from '../utils/pdfGenerator'; 
 
@@ -53,7 +54,7 @@ export default function RegistroServicios({ casaSeleccionada }) {
   // Función para guardar los cargos de manera PERMANENTE en la tabla 'casas' de Supabase
   const guardarCargosEnBD = async () => {
     if (!casaSeleccionada) {
-      alert('Por favor selecciona una casa primero desde el panel de Casas.');
+      toast.warning('Por favor selecciona una casa primero desde el panel de Casas.');
       return;
     }
 
@@ -70,10 +71,10 @@ export default function RegistroServicios({ casaSeleccionada }) {
         .eq('nombre', casaSeleccionada);
 
       if (error) throw error;
-      alert(`¡Los cargos adicionales de "${casaSeleccionada}" se han guardado permanentemente para el próximo mes!`);
+      toast.success(`Cargos adicionales de "${casaSeleccionada}" guardados permanentemente para el próximo mes.`);
     } catch (err) {
       console.error(err);
-      alert('Error al guardar los cargos de la casa.');
+      toast.error('Error al guardar los cargos de la casa.');
     }
   };
 
@@ -129,10 +130,10 @@ export default function RegistroServicios({ casaSeleccionada }) {
       const { error } = await supabase.from('registros_servicios').insert([dataRegistro]);
       if (error) throw error;
       setResultado(dataRegistro);
-      alert('¡Registro guardado exitosamente en Supabase!');
+      toast.success('Registro guardado exitosamente.');
     } catch (err) {
       console.error(err);
-      alert('Hubo un error al guardar.');
+      toast.error('Hubo un error al guardar.');
     } finally {
       setLoading(false);
     }

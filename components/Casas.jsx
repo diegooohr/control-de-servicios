@@ -1,7 +1,9 @@
 "use client";
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { supabase } from '../lib/supabaseClient';
 import Modal from './Modal';
+import { useConfirm } from './ConfirmProvider';
 
 const hoy = () => new Date().toISOString().slice(0, 10);
 
@@ -12,17 +14,19 @@ function diasHasta(fecha) {
 }
 
 export default function Casas({ setActiveTab, setCasaSeleccionada }) {
+  const confirm = useConfirm();
   const [inmuebles, setInmuebles] = useState([]);
   const [contratosPorCasa, setContratosPorCasa] = useState({});
   const [ultimoRegistroPorCasa, setUltimoRegistroPorCasa] = useState({});
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState(null);
+  const [grupoActivo, setGrupoActivo] = useState(null);
 
   // Estados para la ventana emergente (Modal)
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({
-    nombre: '', telefono: '', direccion: '', observaciones: ''
+    nombre: '', grupo: '', telefono: '', direccion: '', observaciones: ''
   });
 
   useEffect(() => {
@@ -70,7 +74,7 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
 
   const abrirModalNuevo = () => {
     setEditingId(null);
-    setFormData({ nombre: '', telefono: '', direccion: '', observaciones: '' });
+    setFormData({ nombre: '', grupo: grupoActivo || '', telefono: '', direccion: '', observaciones: '' });
     setShowModal(true);
   };
 
@@ -78,6 +82,7 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
     setEditingId(casa.id);
     setFormData({
       nombre: casa.nombre,
+      grupo: casa.grupo || '',
       telefono: casa.telefono || '', direccion: casa.direccion || '', observaciones: casa.observaciones || ''
     });
     setShowModal(true);
@@ -97,30 +102,62 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
       }
       setShowModal(false);
       fetchCasas();
+      toast.success(editingId ? 'Inmueble actualizado correctamente.' : 'Inmueble creado correctamente.');
     } catch (err) {
       console.error('Error al guardar:', err.message);
-      alert('Error al guardar la propiedad.');
+      toast.error('Error al guardar la propiedad.');
     }
   };
 
   const eliminarCasa = async (id, nombre) => {
-    if (window.confirm(`¿Estás seguro de que deseas eliminar "${nombre}"?`)) {
+    const ok = await confirm({
+      title: 'Eliminar inmueble',
+      message: `¿Estás seguro de que deseas eliminar "${nombre}"? Esta acción no se puede deshacer.`,
+      confirmLabel: 'Eliminar',
+    });
+    if (ok) {
       try {
         const { error } = await supabase.from('casas').delete().eq('id', id);
         if (error) throw error;
         fetchCasas();
+        toast.success('Inmueble eliminado.');
       } catch (err) {
         console.error('Error al eliminar:', err.message);
+        toast.error('No se pudo eliminar el inmueble.');
       }
     }
   };
+
+  // Agrupa los inmuebles por el campo "grupo" (si no tiene, se agrupa solo consigo mismo por nombre)
+  const grupos = {};
+  inmuebles.forEach((casa) => {
+    const clave = casa.grupo?.trim() || casa.nombre;
+    if (!grupos[clave]) grupos[clave] = [];
+    grupos[clave].push(casa);
+  });
+  const nombresGrupos = Object.keys(grupos).sort((a, b) => a.localeCompare(b));
+  const casasDelGrupo = grupoActivo ? (grupos[grupoActivo] || []) : [];
+
+  const ocupadasEnGrupo = (lista) => lista.filter((c) => contratosPorCasa[c.id]?.estado === 'activo').length;
 
   return (
     <div className="mx-auto w-full max-w-6xl pb-12">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="mb-1 text-xs font-semibold uppercase tracking-[0.24em] text-blue-400">Panel</p>
-          <h2 className="text-2xl font-bold text-white">Directorio de Inmuebles</h2>
+          {grupoActivo ? (
+            <div>
+              <button
+                onClick={() => setGrupoActivo(null)}
+                className="mb-1 flex items-center gap-1 text-xs font-semibold text-blue-400 transition hover:text-blue-300"
+              >
+                ← Volver a Casas
+              </button>
+              <h2 className="text-2xl font-bold text-white">🏠 {grupoActivo} <span className="text-base font-normal text-slate-400">· Inquilinos</span></h2>
+            </div>
+          ) : (
+            <h2 className="text-2xl font-bold text-white">Directorio de Inmuebles</h2>
+          )}
         </div>
 
         <button
@@ -140,9 +177,46 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
           <p className="mb-4 text-slate-300">No tienes ningún inmueble registrado aún.</p>
           <button onClick={abrirModalNuevo} className="rounded-lg bg-blue-600 px-4 py-2 text-white transition hover:bg-blue-500">Crear el primero</button>
         </div>
-      ) : (
+      ) : !grupoActivo ? (
+        // Nivel 1: tarjetas de "Casa" agrupadoras. Al hacer click, entra al detalle de inquilinos.
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {inmuebles.map((casa) => {
+          {nombresGrupos.map((nombreGrupo) => {
+            const lista = grupos[nombreGrupo];
+            const ocupadas = ocupadasEnGrupo(lista);
+            return (
+              <button
+                key={nombreGrupo}
+                onClick={() => setGrupoActivo(nombreGrupo)}
+                className="group flex flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-800/90 text-left shadow-[0_16px_35px_rgba(2,6,23,0.28)] transition duration-200 hover:-translate-y-1 hover:border-blue-500/40 hover:shadow-[0_22px_45px_rgba(37,99,235,0.12)]"
+              >
+                <div className="border-b border-slate-700 bg-gradient-to-r from-slate-800 via-slate-800 to-slate-900 p-5">
+                  <h3 className="flex items-center gap-2 text-lg font-bold text-blue-400">
+                    <span className="text-xl">🏘️</span>
+                    {nombreGrupo}
+                  </h3>
+                  <span className="mt-2 inline-flex w-fit items-center rounded-full border border-slate-600/40 bg-slate-700/20 px-2.5 py-0.5 text-[10px] font-semibold text-slate-400">
+                    {lista.length} {lista.length === 1 ? 'unidad' : 'unidades'}
+                  </span>
+                </div>
+                <div className="flex flex-1 items-center justify-between gap-3 p-5">
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-300">
+                      ● {ocupadas} ocupada{ocupadas === 1 ? '' : 's'}
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-full border border-slate-600/40 bg-slate-700/20 px-2.5 py-1 text-xs font-semibold text-slate-400">
+                      ○ {lista.length - ocupadas} vacía{lista.length - ocupadas === 1 ? '' : 's'}
+                    </span>
+                  </div>
+                  <span className="text-lg text-slate-500 transition group-hover:translate-x-1 group-hover:text-blue-400" aria-hidden="true">→</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        // Nivel 2: inquilinos/unidades dentro de la casa seleccionada
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {casasDelGrupo.map((casa) => {
             const contrato = contratosPorCasa[casa.id];
             const ocupada = contrato && contrato.estado === 'activo';
             const ultimoRegistro = ultimoRegistroPorCasa[casa.nombre];
@@ -285,8 +359,24 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
                     value={formData.nombre}
                     onChange={e => setFormData({ ...formData, nombre: e.target.value })}
                     className="w-full rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                    placeholder="Ej: Casa 1, Departamento A..."
+                    placeholder="Ej: Interior, Exterior, Depto A..."
                   />
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Casa (agrupa varias unidades)</label>
+                  <input
+                    type="text"
+                    list="grupos-existentes"
+                    value={formData.grupo}
+                    onChange={e => setFormData({ ...formData, grupo: e.target.value })}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                    placeholder="Ej: Casa de fernando"
+                  />
+                  <datalist id="grupos-existentes">
+                    {nombresGrupos.map((g) => <option key={g} value={g} />)}
+                  </datalist>
+                  <p className="mt-1.5 text-[11px] text-slate-500">Deja vacío si es una unidad independiente (se agrupará bajo su propio nombre).</p>
                 </div>
 
                 <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-3 text-xs leading-relaxed text-blue-200">

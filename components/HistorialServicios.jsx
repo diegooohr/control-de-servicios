@@ -1,23 +1,43 @@
 "use client";
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { supabase } from '../lib/supabaseClient';
-import { descargarReciboPDF } from '../utils/pdfGenerator'; 
+import { descargarReciboPDF } from '../utils/pdfGenerator';
+import { useConfirm } from './ConfirmProvider';
 
 export default function HistorialServicios() {
+  const confirm = useConfirm();
   const [registros, setRegistros] = useState([]);
+  const [inquilinoPorCasa, setInquilinoPorCasa] = useState({});
   const [loading, setLoading] = useState(true);
   const [casaFiltro, setCasaFiltro] = useState('Todas');
 
   useEffect(() => {
     async function fetchHistorial() {
       try {
-        const { data, error } = await supabase
-          .from('registros_servicios')
-          .select('*')
-          .order('created_at', { ascending: false });
+        const [{ data, error }, { data: casasData, error: errCasas }, { data: contratosData, error: errContratos }] = await Promise.all([
+          supabase.from('registros_servicios').select('*').order('created_at', { ascending: false }),
+          supabase.from('casas').select('id, nombre'),
+          supabase.from('contratos').select('*').order('fecha_inicio', { ascending: false }),
+        ]);
 
         if (error) throw error;
+        if (errCasas) throw errCasas;
+        if (errContratos) throw errContratos;
         setRegistros(data || []);
+
+        // Mapea nombre de casa -> contrato activo (o el más reciente si no hay activo)
+        const idPorNombre = {};
+        (casasData || []).forEach((c) => { idPorNombre[c.id] = c.nombre; });
+        const mapaContratos = {};
+        (contratosData || []).forEach((c) => {
+          const nombreCasa = idPorNombre[c.casa_id];
+          if (!nombreCasa) return;
+          const actual = mapaContratos[nombreCasa];
+          if (!actual) mapaContratos[nombreCasa] = c;
+          else if (c.estado === 'activo' && actual.estado !== 'activo') mapaContratos[nombreCasa] = c;
+        });
+        setInquilinoPorCasa(mapaContratos);
       } catch (err) {
         console.error('Error cargando historial:', err.message);
       } finally {
@@ -30,17 +50,22 @@ export default function HistorialServicios() {
   const casasUnicas = Array.from(new Set(['Todas', ...registros.map(r => r.casa || 'General')]));
 
   const eliminarRegistro = async (id, mes, casa) => {
-    const confirmado = window.confirm(`¿Deseas eliminar el registro de ${casa || 'General'} para ${mes}?`);
-    if (!confirmado) return;
+    const ok = await confirm({
+      title: 'Eliminar registro',
+      message: `¿Deseas eliminar el registro de ${casa || 'General'} para ${mes}?`,
+      confirmLabel: 'Eliminar',
+    });
+    if (!ok) return;
 
     try {
       const { error } = await supabase.from('registros_servicios').delete().eq('id', id);
       if (error) throw error;
 
       setRegistros((prev) => prev.filter((registro) => registro.id !== id));
+      toast.success('Registro eliminado.');
     } catch (err) {
       console.error('Error al eliminar registro:', err.message);
-      alert('No se pudo eliminar el registro.');
+      toast.error('No se pudo eliminar el registro.');
     }
   };
 
@@ -87,6 +112,11 @@ export default function HistorialServicios() {
                     <span className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.18em] text-slate-300">
                       📍 {reg.casa || 'General'}
                     </span>
+                    {inquilinoPorCasa[reg.casa] && (
+                      <span className="rounded-md border border-blue-700/40 bg-blue-500/10 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.18em] text-blue-300">
+                        👤 {inquilinoPorCasa[reg.casa].inquilino}
+                      </span>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-2 text-xs text-slate-400 sm:gap-3">
                     <span className="break-words">⚡ Luz: S/ {reg.luz_total?.toFixed(2)}</span>
@@ -102,7 +132,7 @@ export default function HistorialServicios() {
                   </div>
                   <div className="flex w-full flex-wrap gap-2 md:w-auto">
                     <button
-                      onClick={() => descargarReciboPDF(reg)}
+                      onClick={() => descargarReciboPDF(reg, inquilinoPorCasa[reg.casa])}
                       className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white shadow-lg shadow-red-900/20 transition hover:bg-red-500 sm:flex-none"
                     >
                       📄 PDF
