@@ -26,7 +26,8 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({
-    nombre: '', grupo: '', telefono: '', direccion: '', observaciones: ''
+    nombre: '', grupo: '', direccion: '', observaciones: '',
+    inquilino: '', telefonoInquilino: '', generarContrato: false,
   });
 
   useEffect(() => {
@@ -74,7 +75,10 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
 
   const abrirModalNuevo = () => {
     setEditingId(null);
-    setFormData({ nombre: '', grupo: grupoActivo || '', telefono: '', direccion: '', observaciones: '' });
+    setFormData({
+      nombre: '', grupo: grupoActivo || '', direccion: '', observaciones: '',
+      inquilino: '', telefonoInquilino: '', generarContrato: false,
+    });
     setShowModal(true);
   };
 
@@ -83,31 +87,46 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
     setFormData({
       nombre: casa.nombre,
       grupo: casa.grupo || '',
-      telefono: casa.telefono || '', direccion: casa.direccion || '', observaciones: casa.observaciones || ''
+      direccion: casa.direccion || '', observaciones: casa.observaciones || '',
+      inquilino: '', telefonoInquilino: '', generarContrato: false,
     });
     setShowModal(true);
   };
 
   const guardarCasa = async (e) => {
     e.preventDefault();
+    const { inquilino, telefonoInquilino, generarContrato, ...datosCasa } = formData;
     try {
       if (editingId) {
         // Actualizar
-        const { error } = await supabase.from('casas').update(formData).eq('id', editingId);
+        const { error } = await supabase.from('casas').update(datosCasa).eq('id', editingId);
         if (error) throw error;
         setShowModal(false);
         fetchCasas();
         toast.success('Inmueble actualizado correctamente.');
       } else {
         // Crear nuevo
-        const { data, error } = await supabase.from('casas').insert([formData]).select().single();
+        const { data, error } = await supabase.from('casas').insert([datosCasa]).select().single();
         if (error) throw error;
+
+        // Si se creó dentro de una casa agrupada y se indicó un inquilino, crea también su contrato
+        if (grupoActivo && data && inquilino?.trim()) {
+          const { error: errContrato } = await supabase.from('contratos').insert([{
+            casa_id: data.id,
+            inquilino: inquilino.trim(),
+            telefono: telefonoInquilino || null,
+            fecha_inicio: hoy(),
+            estado: 'activo',
+          }]);
+          if (errContrato) throw errContrato;
+        }
+
         setShowModal(false);
         fetchCasas();
-        toast.success('Inmueble creado correctamente.');
+        toast.success('Inquilino registrado correctamente.');
 
-        // Si se creó dentro de una casa agrupada, lleva directo a Contratos para registrar al inquilino
-        if (grupoActivo && data) {
+        // Si se pidió generar contrato, lleva a Contratos para completar la plantilla
+        if (grupoActivo && data && generarContrato) {
           setCasaSeleccionada(data.nombre);
           setActiveTab('contratos');
         }
@@ -344,9 +363,11 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
             <div className="shrink-0 border-b border-slate-700/80 bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800/90 px-4 py-3 sm:px-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-blue-300/80">Inmueble</p>
-                  <h3 className="text-lg font-bold text-white sm:text-xl">{editingId ? 'Editar Inmueble' : 'Nuevo Inmueble'}</h3>
-                </div>
+                    <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-blue-300/80">{grupoActivo ? 'Inquilino' : 'Inmueble'}</p>
+                    <h3 className="text-lg font-bold text-white sm:text-xl">
+                      {editingId ? 'Editar' : grupoActivo ? 'Nuevo Inquilino' : 'Nueva Casa'}
+                    </h3>
+                  </div>
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
@@ -360,59 +381,117 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
 
             <div className="overflow-y-auto">
               <form onSubmit={guardarCasa} className="space-y-4 p-4 sm:p-6">
-                <div>
-                  <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Nombre del Inmueble *</label>
-                  <input
-                    required
-                    type="text"
-                    value={formData.nombre}
-                    onChange={e => setFormData({ ...formData, nombre: e.target.value })}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                    placeholder="Ej: Interior, Exterior, Depto A..."
-                  />
-                </div>
+                {!grupoActivo ? (
+                  <>
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Nombre de la Casa *</label>
+                      <input
+                        required
+                        type="text"
+                        value={formData.nombre}
+                        onChange={e => setFormData({ ...formData, nombre: e.target.value, grupo: e.target.value })}
+                        className="w-full rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                        placeholder="Ej: Casa de Fernando"
+                      />
+                      <p className="mt-1.5 text-[11px] text-slate-500">Luego, al entrar a esta casa, podrás agregar los interiores/departamentos y sus inquilinos.</p>
+                    </div>
 
-                <div>
-                  <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Casa (agrupa varias unidades)</label>
-                  <input
-                    type="text"
-                    list="grupos-existentes"
-                    value={formData.grupo}
-                    onChange={e => setFormData({ ...formData, grupo: e.target.value })}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                    placeholder="Ej: Casa de fernando"
-                  />
-                  <datalist id="grupos-existentes">
-                    {nombresGrupos.map((g) => <option key={g} value={g} />)}
-                  </datalist>
-                  <p className="mt-1.5 text-[11px] text-slate-500">Deja vacío si es una unidad independiente (se agrupará bajo su propio nombre).</p>
-                </div>
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Dirección exacta</label>
+                      <input
+                        type="text"
+                        value={formData.direccion}
+                        onChange={e => setFormData({ ...formData, direccion: e.target.value })}
+                        className="w-full rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                        placeholder="Ej: Av. Principal 123..."
+                      />
+                    </div>
 
-                <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-3 text-xs leading-relaxed text-blue-200">
-                  ℹ️ El inquilino, teléfono y fechas de contrato ahora se gestionan desde la sección <strong>Contratos</strong>.
-                </div>
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Observaciones</label>
+                      <textarea
+                        rows="3"
+                        value={formData.observaciones}
+                        onChange={e => setFormData({ ...formData, observaciones: e.target.value })}
+                        className="w-full resize-none rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                        placeholder="El medidor tiene la tapa suelta..."
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-3 text-xs leading-relaxed text-blue-200">
+                      🏘️ Casa: <strong>{grupoActivo}</strong>
+                    </div>
 
-                <div>
-                  <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Dirección exacta</label>
-                  <input
-                    type="text"
-                    value={formData.direccion}
-                    onChange={e => setFormData({ ...formData, direccion: e.target.value })}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                    placeholder="Ej: Av. Principal 123..."
-                  />
-                </div>
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Interior / Departamento *</label>
+                      <input
+                        required
+                        type="text"
+                        value={formData.nombre}
+                        onChange={e => setFormData({ ...formData, nombre: e.target.value })}
+                        className="w-full rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                        placeholder="Ej: Interior 1, Depto A..."
+                      />
+                    </div>
 
-                <div>
-                  <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Observaciones</label>
-                  <textarea
-                    rows="3"
-                    value={formData.observaciones}
-                    onChange={e => setFormData({ ...formData, observaciones: e.target.value })}
-                    className="w-full resize-none rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                    placeholder="El medidor tiene la tapa suelta..."
-                  />
-                </div>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Nombre del Inquilino</label>
+                        <input
+                          type="text"
+                          value={formData.inquilino}
+                          onChange={e => setFormData({ ...formData, inquilino: e.target.value })}
+                          className="w-full rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                          placeholder="Ej: Juana Aviles"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Teléfono</label>
+                        <input
+                          type="text"
+                          value={formData.telefonoInquilino}
+                          onChange={e => setFormData({ ...formData, telefonoInquilino: e.target.value })}
+                          className="w-full rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                          placeholder="Ej: 999 999 999"
+                        />
+                      </div>
+                    </div>
+
+                    <label className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/60 p-3 text-sm text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={formData.generarContrato}
+                        onChange={e => setFormData({ ...formData, generarContrato: e.target.checked })}
+                        className="h-4 w-4 rounded border-slate-600 bg-slate-900 accent-blue-500"
+                      />
+                      📄 Generar contrato para este inquilino ahora
+                    </label>
+
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Dirección exacta</label>
+                      <input
+                        type="text"
+                        value={formData.direccion}
+                        onChange={e => setFormData({ ...formData, direccion: e.target.value })}
+                        className="w-full rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                        placeholder="Ej: Av. Principal 123..."
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Observaciones</label>
+                      <textarea
+                        rows="3"
+                        value={formData.observaciones}
+                        onChange={e => setFormData({ ...formData, observaciones: e.target.value })}
+                        className="w-full resize-none rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                        placeholder="El medidor tiene la tapa suelta..."
+                      />
+                    </div>
+                  </>
+                )}
 
                 <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
                   <button
@@ -426,7 +505,7 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
                     type="submit"
                     className="rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 px-6 py-2.5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(59,130,246,0.35)] transition hover:brightness-110"
                   >
-                    {editingId ? 'Actualizar Datos' : 'Guardar Inmueble'}
+                    {editingId ? 'Actualizar Datos' : grupoActivo ? 'Guardar Inquilino' : 'Guardar Casa'}
                   </button>
                 </div>
               </form>

@@ -11,7 +11,7 @@ export default function RegistroServicios({ casaSeleccionada }) {
   });
   
   const [luzAnt, setLuzAnt] = useState(''); const [luzAct, setLuzAct] = useState(''); const [luzPrecio, setLuzPrecio] = useState(''); const [luzIgv, setLuzIgv] = useState(false);
-  const [aguaAnt, setAguaAnt] = useState(''); const [aguaAct, setAguaAct] = useState(''); const [aguaPrecio, setAguaPrecio] = useState(''); const [aguaIgv, setAguaIgv] = useState(false);
+  const [aguaAnt, setAguaAnt] = useState(''); const [aguaAct, setAguaAct] = useState(''); const [aguaPrecio, setAguaPrecio] = useState(''); const [aguaAlcantarillado, setAguaAlcantarillado] = useState(''); const [aguaIgv, setAguaIgv] = useState(false);
   const [gasMonto, setGasMonto] = useState('');
 
   const [cargosLuz, setCargosLuz] = useState([]);
@@ -110,10 +110,13 @@ export default function RegistroServicios({ casaSeleccionada }) {
     const cargosLuzGuardar = luzIgv ? [...cargosLuz, { nombre: 'IGV (18%)', monto: igvLuz.toFixed(2) }] : cargosLuz;
 
     const consumoAgua = Math.max(0, Number(aguaAct) - Number(aguaAnt));
-    const baseAgua = (consumoAgua * Number(aguaPrecio)) + sumarCargos(cargosAgua);
+    const montoAlcantarillado = consumoAgua * Number(aguaAlcantarillado || 0);
+    const baseAgua = (consumoAgua * Number(aguaPrecio)) + montoAlcantarillado + sumarCargos(cargosAgua);
     const igvAgua = aguaIgv ? baseAgua * 0.18 : 0;
     const subtotalAgua = baseAgua + igvAgua;
-    const cargosAguaGuardar = aguaIgv ? [...cargosAgua, { nombre: 'IGV (18%)', monto: igvAgua.toFixed(2) }] : cargosAgua;
+    let cargosAguaGuardar = cargosAgua;
+    if (montoAlcantarillado > 0) cargosAguaGuardar = [...cargosAguaGuardar, { nombre: 'Alcantarillado', monto: montoAlcantarillado.toFixed(2) }];
+    if (aguaIgv) cargosAguaGuardar = [...cargosAguaGuardar, { nombre: 'IGV (18%)', monto: igvAgua.toFixed(2) }];
 
     const subtotalGas = Number(gasMonto || 0) + sumarCargos(cargosGas);
 
@@ -229,6 +232,13 @@ export default function RegistroServicios({ casaSeleccionada }) {
                 <div className="relative">
                   <span className="absolute left-3 top-2.5 text-sm text-slate-400">S/</span>
                   <input type="number" step="any" placeholder="Precio x m³" required value={aguaPrecio} onChange={e => setAguaPrecio(e.target.value)} className="w-full rounded-xl border border-slate-700 bg-slate-900/80 p-2.5 pl-8 text-sm text-white outline-none transition duration-200 hover:border-slate-600 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/25" />
+                </div>
+                <div>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-sm text-slate-400">S/</span>
+                    <input type="number" step="any" placeholder="Tarifa alcantarillado x m³" value={aguaAlcantarillado} onChange={e => setAguaAlcantarillado(e.target.value)} className="w-full rounded-xl border border-slate-700 bg-slate-900/80 p-2.5 pl-8 text-sm text-white outline-none transition duration-200 hover:border-slate-600 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/25" />
+                  </div>
+                  <p className="mt-1.5 text-[11px] text-slate-500">Se multiplica por el consumo de agua (m³) y se suma aparte, tal como figura en el recibo.</p>
                 </div>
                 <label className="flex items-center gap-2 text-xs text-slate-300">
                   <input type="checkbox" checked={aguaIgv} onChange={e => setAguaIgv(e.target.checked)} className="h-4 w-4 rounded border-slate-600 bg-slate-900 accent-blue-500" />
