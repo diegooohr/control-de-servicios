@@ -95,14 +95,23 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
         // Actualizar
         const { error } = await supabase.from('casas').update(formData).eq('id', editingId);
         if (error) throw error;
+        setShowModal(false);
+        fetchCasas();
+        toast.success('Inmueble actualizado correctamente.');
       } else {
         // Crear nuevo
-        const { error } = await supabase.from('casas').insert([formData]);
+        const { data, error } = await supabase.from('casas').insert([formData]).select().single();
         if (error) throw error;
+        setShowModal(false);
+        fetchCasas();
+        toast.success('Inmueble creado correctamente.');
+
+        // Si se creó dentro de una casa agrupada, lleva directo a Contratos para registrar al inquilino
+        if (grupoActivo && data) {
+          setCasaSeleccionada(data.nombre);
+          setActiveTab('contratos');
+        }
       }
-      setShowModal(false);
-      fetchCasas();
-      toast.success(editingId ? 'Inmueble actualizado correctamente.' : 'Inmueble creado correctamente.');
     } catch (err) {
       console.error('Error al guardar:', err.message);
       toast.error('Error al guardar la propiedad.');
@@ -164,7 +173,7 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
           onClick={abrirModalNuevo}
           className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-500"
         >
-          + Agregar Inmueble
+          {grupoActivo ? '+ Agregar Inquilino' : '+ Agregar Inmueble'}
         </button>
       </div>
 

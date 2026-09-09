@@ -10,8 +10,8 @@ export default function RegistroServicios({ casaSeleccionada }) {
     return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
   });
   
-  const [luzAnt, setLuzAnt] = useState(''); const [luzAct, setLuzAct] = useState(''); const [luzPrecio, setLuzPrecio] = useState('');
-  const [aguaAnt, setAguaAnt] = useState(''); const [aguaAct, setAguaAct] = useState(''); const [aguaPrecio, setAguaPrecio] = useState('');
+  const [luzAnt, setLuzAnt] = useState(''); const [luzAct, setLuzAct] = useState(''); const [luzPrecio, setLuzPrecio] = useState(''); const [luzIgv, setLuzIgv] = useState(false);
+  const [aguaAnt, setAguaAnt] = useState(''); const [aguaAct, setAguaAct] = useState(''); const [aguaPrecio, setAguaPrecio] = useState(''); const [aguaIgv, setAguaIgv] = useState(false);
   const [gasMonto, setGasMonto] = useState('');
 
   const [cargosLuz, setCargosLuz] = useState([]);
@@ -104,10 +104,16 @@ export default function RegistroServicios({ casaSeleccionada }) {
     setLoading(true);
 
     const consumoLuz = Math.max(0, Number(luzAct) - Number(luzAnt));
-    const subtotalLuz = (consumoLuz * Number(luzPrecio)) + sumarCargos(cargosLuz);
+    const baseLuz = (consumoLuz * Number(luzPrecio)) + sumarCargos(cargosLuz);
+    const igvLuz = luzIgv ? baseLuz * 0.18 : 0;
+    const subtotalLuz = baseLuz + igvLuz;
+    const cargosLuzGuardar = luzIgv ? [...cargosLuz, { nombre: 'IGV (18%)', monto: igvLuz.toFixed(2) }] : cargosLuz;
 
     const consumoAgua = Math.max(0, Number(aguaAct) - Number(aguaAnt));
-    const subtotalAgua = (consumoAgua * Number(aguaPrecio)) + sumarCargos(cargosAgua);
+    const baseAgua = (consumoAgua * Number(aguaPrecio)) + sumarCargos(cargosAgua);
+    const igvAgua = aguaIgv ? baseAgua * 0.18 : 0;
+    const subtotalAgua = baseAgua + igvAgua;
+    const cargosAguaGuardar = aguaIgv ? [...cargosAgua, { nombre: 'IGV (18%)', monto: igvAgua.toFixed(2) }] : cargosAgua;
 
     const subtotalGas = Number(gasMonto || 0) + sumarCargos(cargosGas);
 
@@ -120,8 +126,8 @@ export default function RegistroServicios({ casaSeleccionada }) {
       agua_lectura_ant: Number(aguaAnt), agua_lectura_act: Number(aguaAct), agua_consumo: consumoAgua, agua_total: subtotalAgua,
       gas_lectura_ant: 0, gas_lectura_act: 0, gas_consumo: 0, gas_total: subtotalGas,
       monto_total_global: totalGlobal,
-      cargos_luz: cargosLuz,
-      cargos_agua: cargosAgua,
+      cargos_luz: cargosLuzGuardar,
+      cargos_agua: cargosAguaGuardar,
       cargos_gas: cargosGas
     };
 
@@ -207,6 +213,10 @@ export default function RegistroServicios({ casaSeleccionada }) {
                   <span className="absolute left-3 top-2.5 text-sm text-slate-400">S/</span>
                   <input type="number" step="any" placeholder="Precio x kWh" required value={luzPrecio} onChange={e => setLuzPrecio(e.target.value)} className="w-full rounded-xl border border-slate-700 bg-slate-900/80 p-2.5 pl-8 text-sm text-white outline-none transition duration-200 hover:border-slate-600 focus:border-amber-400 focus:ring-2 focus:ring-amber-500/25" />
                 </div>
+                <label className="flex items-center gap-2 text-xs text-slate-300">
+                  <input type="checkbox" checked={luzIgv} onChange={e => setLuzIgv(e.target.checked)} className="h-4 w-4 rounded border-slate-600 bg-slate-900 accent-amber-500" />
+                  Incluir IGV (18%)
+                </label>
               </div>
               {renderCargos('luz', cargosLuz)}
             </div>
@@ -220,6 +230,10 @@ export default function RegistroServicios({ casaSeleccionada }) {
                   <span className="absolute left-3 top-2.5 text-sm text-slate-400">S/</span>
                   <input type="number" step="any" placeholder="Precio x m³" required value={aguaPrecio} onChange={e => setAguaPrecio(e.target.value)} className="w-full rounded-xl border border-slate-700 bg-slate-900/80 p-2.5 pl-8 text-sm text-white outline-none transition duration-200 hover:border-slate-600 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/25" />
                 </div>
+                <label className="flex items-center gap-2 text-xs text-slate-300">
+                  <input type="checkbox" checked={aguaIgv} onChange={e => setAguaIgv(e.target.checked)} className="h-4 w-4 rounded border-slate-600 bg-slate-900 accent-blue-500" />
+                  Incluir IGV (18%)
+                </label>
               </div>
               {renderCargos('agua', cargosAgua)}
             </div>
