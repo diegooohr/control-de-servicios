@@ -39,11 +39,11 @@ export const descargarReciboPDF = (registro, contrato) => {
     if (contrato.telefono) doc.text(`Teléfono: ${contrato.telefono}`, 120, 54);
   }
 
-  // 3. Generar Tabla Principal
+  // 3. Generar Tabla Principal (detalle de todo lo facturable)
   const bodyData = [
     ['Luz (kWh)', registro.luz_lectura_ant, registro.luz_lectura_act, registro.luz_consumo, `S/ ${registro.luz_total?.toFixed(2)}`],
     ['Agua (m³)', registro.agua_lectura_ant, registro.agua_lectura_act, registro.agua_consumo, `S/ ${registro.agua_total?.toFixed(2)}`],
-    ['Gas (m³)', registro.gas_lectura_ant, registro.gas_lectura_act, registro.gas_consumo, `S/ ${registro.gas_total?.toFixed(2)}`],
+    ['Gas (Recibo Calidda)', '—', '—', '—', `S/ ${registro.gas_total?.toFixed(2)}`],
   ];
 
   autoTable(doc, {
@@ -93,14 +93,14 @@ export const descargarReciboPDF = (registro, contrato) => {
   doc.setTextColor(220, 38, 38); 
   doc.text(`TOTAL A PAGAR: S/ ${registro.monto_total_global?.toFixed(2)}`, 130, finalY);
 
-  // 6. Pie de página sin datos ficticios
+  // 6. Pie de página con datos de pago (Yape)
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
   doc.text("DATOS PARA EL PAGO:", 14, finalY + 15);
   doc.setFont("helvetica", "normal");
-  doc.text("Banco: por definir", 14, finalY + 22);
-  doc.text("Referencia / Yape: por definir", 14, finalY + 28);
+  doc.text("Yape: +51 969 368 759", 14, finalY + 22);
+  doc.text("A nombre de: Yda Violeta Mestanza Montoya", 14, finalY + 28);
   doc.text("Enviar comprobante una vez realizado el pago.", 14, finalY + 36);
 
   doc.save(`Recibo_${casa.replace(/\s+/g, '_')}_${mes}.pdf`);

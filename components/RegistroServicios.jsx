@@ -12,7 +12,7 @@ export default function RegistroServicios({ casaSeleccionada }) {
   
   const [luzAnt, setLuzAnt] = useState(''); const [luzAct, setLuzAct] = useState(''); const [luzPrecio, setLuzPrecio] = useState('');
   const [aguaAnt, setAguaAnt] = useState(''); const [aguaAct, setAguaAct] = useState(''); const [aguaPrecio, setAguaPrecio] = useState('');
-  const [gasAnt, setGasAnt] = useState(''); const [gasAct, setGasAct] = useState(''); const [gasPrecio, setGasPrecio] = useState('');
+  const [gasMonto, setGasMonto] = useState('');
 
   const [cargosLuz, setCargosLuz] = useState([]);
   const [cargosAgua, setCargosAgua] = useState([]);
@@ -109,8 +109,7 @@ export default function RegistroServicios({ casaSeleccionada }) {
     const consumoAgua = Math.max(0, Number(aguaAct) - Number(aguaAnt));
     const subtotalAgua = (consumoAgua * Number(aguaPrecio)) + sumarCargos(cargosAgua);
 
-    const consumoGas = Math.max(0, Number(gasAct) - Number(gasAnt));
-    const subtotalGas = (consumoGas * Number(gasPrecio)) + sumarCargos(cargosGas);
+    const subtotalGas = Number(gasMonto || 0) + sumarCargos(cargosGas);
 
     const totalGlobal = subtotalLuz + subtotalAgua + subtotalGas;
 
@@ -119,7 +118,7 @@ export default function RegistroServicios({ casaSeleccionada }) {
       mes_anio: mesAnio,
       luz_lectura_ant: Number(luzAnt), luz_lectura_act: Number(luzAct), luz_consumo: consumoLuz, luz_total: subtotalLuz,
       agua_lectura_ant: Number(aguaAnt), agua_lectura_act: Number(aguaAct), agua_consumo: consumoAgua, agua_total: subtotalAgua,
-      gas_lectura_ant: Number(gasAnt), gas_lectura_act: Number(gasAct), gas_consumo: consumoGas, gas_total: subtotalGas,
+      gas_lectura_ant: 0, gas_lectura_act: 0, gas_consumo: 0, gas_total: subtotalGas,
       monto_total_global: totalGlobal,
       cargos_luz: cargosLuz,
       cargos_agua: cargosAgua,
@@ -226,13 +225,14 @@ export default function RegistroServicios({ casaSeleccionada }) {
             </div>
 
             <div className="group rounded-[22px] border border-orange-500/30 bg-gradient-to-br from-orange-500/10 via-slate-900 to-slate-900/80 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition duration-200 hover:-translate-y-1 hover:border-orange-400/50 hover:shadow-[0_18px_30px_rgba(249,115,22,0.08)]">
-              <h3 className="mb-3 flex items-center gap-2 text-base font-bold text-orange-400">🔥 Gas (m³)</h3>
+              <h3 className="mb-3 flex items-center gap-2 text-base font-bold text-orange-400">🔥 Gas</h3>
               <div className="space-y-3">
-                <input type="number" step="any" placeholder="Lectura Anterior" required value={gasAnt} onChange={e => setGasAnt(e.target.value)} className="w-full rounded-xl border border-slate-700 bg-slate-900/80 p-2.5 text-sm text-white outline-none transition duration-200 hover:border-slate-600 focus:border-orange-400 focus:ring-2 focus:ring-orange-500/25" />
-                <input type="number" step="any" placeholder="Lectura Actual" required value={gasAct} onChange={e => setGasAct(e.target.value)} className="w-full rounded-xl border border-slate-700 bg-slate-900/80 p-2.5 text-sm text-white outline-none transition duration-200 hover:border-slate-600 focus:border-orange-400 focus:ring-2 focus:ring-orange-500/25" />
-                <div className="relative">
-                  <span className="absolute left-3 top-2.5 text-sm text-slate-400">S/</span>
-                  <input type="number" step="any" placeholder="Precio x m³" required value={gasPrecio} onChange={e => setGasPrecio(e.target.value)} className="w-full rounded-xl border border-slate-700 bg-slate-900/80 p-2.5 pl-8 text-sm text-white outline-none transition duration-200 hover:border-slate-600 focus:border-orange-400 focus:ring-2 focus:ring-orange-500/25" />
+                <div>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-sm text-slate-400">S/</span>
+                    <input type="number" step="any" placeholder="Monto según recibo de Calidda" required value={gasMonto} onChange={e => setGasMonto(e.target.value)} className="w-full rounded-xl border border-slate-700 bg-slate-900/80 p-2.5 pl-8 text-sm text-white outline-none transition duration-200 hover:border-slate-600 focus:border-orange-400 focus:ring-2 focus:ring-orange-500/25" />
+                  </div>
+                  <p className="mt-1.5 text-[11px] text-slate-500">Ingresa el monto total en soles tal como figura en el recibo del suministro (Calidda).</p>
                 </div>
               </div>
               {renderCargos('gas', cargosGas)}
