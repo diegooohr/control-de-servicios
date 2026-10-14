@@ -28,7 +28,7 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({
     nombre: '', grupo: '', direccion: '', observaciones: '',
-    inquilino: '', telefonoInquilino: '', generarContrato: false,
+    hayInquilino: false, inquilino: '', apellido: '', dni: '', telefonoInquilino: '', generarContrato: false,
   });
 
   useEffect(() => {
@@ -79,7 +79,7 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
     setTipoModal(grupoActivo ? 'interior' : 'casa');
     setFormData({
       nombre: '', grupo: grupoActivo || '', direccion: '', observaciones: '',
-      inquilino: '', telefonoInquilino: '', generarContrato: false,
+      hayInquilino: false, inquilino: '', apellido: '', dni: '', telefonoInquilino: '', generarContrato: false,
     });
     setShowModal(true);
   };
@@ -91,7 +91,7 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
       nombre: casa.nombre,
       grupo: casa.grupo || '',
       direccion: casa.direccion || '', observaciones: casa.observaciones || '',
-      inquilino: '', telefonoInquilino: '', generarContrato: false,
+      hayInquilino: false, inquilino: '', apellido: '', dni: '', telefonoInquilino: '', generarContrato: false,
     });
     setShowModal(true);
   };
@@ -104,14 +104,14 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
     setFormData({
       nombre: grupoActivo, grupo: grupoActivo,
       direccion: cabecera?.direccion || '', observaciones: cabecera?.observaciones || '',
-      inquilino: '', telefonoInquilino: '', generarContrato: false,
+      hayInquilino: false, inquilino: '', apellido: '', dni: '', telefonoInquilino: '', generarContrato: false,
     });
     setShowModal(true);
   };
 
   const guardarCasa = async (e) => {
     e.preventDefault();
-    const { inquilino, telefonoInquilino, generarContrato, ...datosCasa } = formData;
+    const { hayInquilino, inquilino, apellido, dni, telefonoInquilino, generarContrato, ...datosCasa } = formData;
     try {
       if (tipoModal === 'casa' && grupoActivo) {
         const nuevoNombre = datosCasa.nombre.trim();
@@ -145,10 +145,11 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
         if (error) throw error;
 
         // Si se creó dentro de una casa agrupada y se indicó un inquilino, crea también su contrato
-        if (tipoModal === 'interior' && grupoActivo && data && inquilino?.trim()) {
+        if (tipoModal === 'interior' && grupoActivo && data && hayInquilino && inquilino?.trim()) {
           const { error: errContrato } = await supabase.from('contratos').insert([{
             casa_id: data.id,
-            inquilino: inquilino.trim(),
+            inquilino: `${inquilino.trim()} ${apellido.trim()}`.trim(),
+            arrendatario_dni: dni.trim() || null,
             telefono: telefonoInquilino || null,
             fecha_inicio: hoy(),
             estado: 'activo',
@@ -161,7 +162,7 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
         toast.success(tipoModal === 'casa' ? 'Casa creada correctamente.' : 'Interior registrado correctamente.');
 
         // Si se pidió generar contrato, lleva a Contratos para completar la plantilla
-        if (tipoModal === 'interior' && grupoActivo && data && generarContrato) {
+        if (tipoModal === 'interior' && grupoActivo && data && hayInquilino && generarContrato) {
           setCasaSeleccionada(data.nombre);
           setActiveTab('contratos');
         }
@@ -385,7 +386,7 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
                   </button>
                 </div>
 
-                <div className="mt-auto grid grid-cols-2 gap-px bg-slate-700">
+                <div className="mt-auto grid grid-cols-3 gap-px bg-slate-700">
                   <button
                     onClick={() => {
                       setCasaSeleccionada(casa.nombre);
@@ -491,49 +492,53 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
                       />
                     </div>
 
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <div>
-                        <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Nombre del Inquilino</label>
-                        <input
-                          type="text"
-                          value={formData.inquilino}
-                          onChange={e => setFormData({ ...formData, inquilino: e.target.value })}
-                          className="w-full rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                          placeholder="Ej: Juana Aviles"
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Teléfono</label>
-                        <input
-                          type="text"
-                          value={formData.telefonoInquilino}
-                          onChange={e => setFormData({ ...formData, telefonoInquilino: e.target.value })}
-                          className="w-full rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                          placeholder="Ej: 999 999 999"
-                        />
-                      </div>
-                    </div>
-
-                    <label className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/60 p-3 text-sm text-slate-300">
-                      <input
-                        type="checkbox"
-                        checked={formData.generarContrato}
-                        onChange={e => setFormData({ ...formData, generarContrato: e.target.checked })}
-                        className="h-4 w-4 rounded border-slate-600 bg-slate-900 accent-blue-500"
-                      />
-                      📄 Generar contrato para este inquilino ahora
-                    </label>
-
                     <div>
-                      <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Dirección exacta</label>
-                      <input
-                        type="text"
-                        value={formData.direccion}
-                        onChange={e => setFormData({ ...formData, direccion: e.target.value })}
-                        className="w-full rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                        placeholder="Ej: Av. Principal 123..."
-                      />
+                      <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Ubicaci?n del interior en la casa</label>
+                      <input list="ubicaciones" type="text" value={formData.direccion} onChange={e => setFormData({ ...formData, direccion: e.target.value })} className="w-full rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" placeholder="Ej: Primer piso, fondo, azotea..." />
+                      <datalist id="ubicaciones">
+                        {['Primer piso', 'Segundo piso', 'Tercer piso', 'Azotea', 'Fondo', 'Frente', 'Lado derecho', 'Lado izquierdo'].map(u => <option key={u} value={u} />)}
+                      </datalist>
                     </div>
+
+                    <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-3">
+                      <p className="mb-2 text-sm text-slate-300">?Hay inquilino en este interior?</p>
+                      <div className="flex gap-2">
+                        {[[true, 'S?'], [false, 'No']].map(([v, l]) => (
+                          <button key={l} type="button" onClick={() => setFormData({ ...formData, hayInquilino: v })} className={`rounded-lg border px-4 py-1.5 text-sm font-semibold transition ${formData.hayInquilino === v ? 'border-blue-500 bg-blue-600 text-white' : 'border-slate-600 bg-slate-800 text-slate-300 hover:border-slate-400'}`}>{l}</button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {formData.hayInquilino && !editingId && (
+                      <>
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div>
+                          <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Nombre completo *</label>
+                          <input type="text" required value={formData.inquilino} onChange={e => setFormData({ ...formData, inquilino: e.target.value })} className="w-full rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" placeholder="Ej: Juana Mar?a" />
+                        </div>
+                        <div>
+                          <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Apellidos *</label>
+                          <input type="text" required value={formData.apellido} onChange={e => setFormData({ ...formData, apellido: e.target.value })} className="w-full rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" placeholder="Ej: Aviles P?rez" />
+                        </div>
+                        <div>
+                          <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">DNI</label>
+                          <input type="text" value={formData.dni} onChange={e => setFormData({ ...formData, dni: e.target.value })} className="w-full rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" placeholder="8 d?gitos" />
+                        </div>
+                        <div>
+                          <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Tel?fono</label>
+                          <input type="text" value={formData.telefonoInquilino} onChange={e => setFormData({ ...formData, telefonoInquilino: e.target.value })} className="w-full rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" placeholder="Ej: 999 999 999" />
+                        </div>
+                        </div>
+                    <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-3">
+                      <p className="mb-2 text-sm text-slate-300">?Deseas generar el contrato ahora?</p>
+                      <div className="flex gap-2">
+                        {[[true, 'S?'], [false, 'No']].map(([v, l]) => (
+                          <button key={l} type="button" onClick={() => setFormData({ ...formData, generarContrato: v })} className={`rounded-lg border px-4 py-1.5 text-sm font-semibold transition ${formData.generarContrato === v ? 'border-blue-500 bg-blue-600 text-white' : 'border-slate-600 bg-slate-800 text-slate-300 hover:border-slate-400'}`}>{l}</button>
+                        ))}
+                      </div>
+                    </div>
+                      </>
+                    )}
 
                     <div>
                       <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Observaciones</label>

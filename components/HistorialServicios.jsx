@@ -5,12 +5,12 @@ import { supabase } from '../lib/supabaseClient';
 import { descargarReciboPDF } from '../utils/pdfGenerator';
 import { useConfirm } from './ConfirmProvider';
 
-export default function HistorialServicios() {
+export default function HistorialServicios({ casaSeleccionada }) {
   const confirm = useConfirm();
   const [registros, setRegistros] = useState([]);
   const [inquilinoPorCasa, setInquilinoPorCasa] = useState({});
   const [loading, setLoading] = useState(true);
-  const [casaFiltro, setCasaFiltro] = useState('Todas');
+  const [casaFiltro, setCasaFiltro] = useState(casaSeleccionada || 'Todas');
 
   useEffect(() => {
     async function fetchHistorial() {
