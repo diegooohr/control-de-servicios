@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '../lib/supabaseClient';
@@ -21,6 +21,7 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState(null);
   const [grupoActivo, setGrupoActivo] = useState(null);
+  const [tipoModal, setTipoModal] = useState('casa');
 
   // Estados para la ventana emergente (Modal)
   const [showModal, setShowModal] = useState(false);
@@ -75,6 +76,7 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
 
   const abrirModalNuevo = () => {
     setEditingId(null);
+    setTipoModal(grupoActivo ? 'interior' : 'casa');
     setFormData({
       nombre: '', grupo: grupoActivo || '', direccion: '', observaciones: '',
       inquilino: '', telefonoInquilino: '', generarContrato: false,
@@ -84,6 +86,7 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
 
   const abrirModalEditar = (casa) => {
     setEditingId(casa.id);
+    setTipoModal('interior');
     setFormData({
       nombre: casa.nombre,
       grupo: casa.grupo || '',
@@ -93,10 +96,42 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
     setShowModal(true);
   };
 
+  // Edita los datos de la casa (fila "cabecera" cuyo nombre coincide con el grupo); si no existe, se crea al guardar
+  const abrirModalEditarCasa = () => {
+    const cabecera = (grupos[grupoActivo] || []).find((c) => c.nombre === grupoActivo);
+    setEditingId(cabecera?.id || null);
+    setTipoModal('casa');
+    setFormData({
+      nombre: grupoActivo, grupo: grupoActivo,
+      direccion: cabecera?.direccion || '', observaciones: cabecera?.observaciones || '',
+      inquilino: '', telefonoInquilino: '', generarContrato: false,
+    });
+    setShowModal(true);
+  };
+
   const guardarCasa = async (e) => {
     e.preventDefault();
     const { inquilino, telefonoInquilino, generarContrato, ...datosCasa } = formData;
     try {
+      if (tipoModal === 'casa' && grupoActivo) {
+        const nuevoNombre = datosCasa.nombre.trim();
+        if (editingId) {
+          const { error } = await supabase.from('casas').update({ nombre: nuevoNombre, grupo: nuevoNombre, direccion: datosCasa.direccion, observaciones: datosCasa.observaciones }).eq('id', editingId);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from('casas').insert([{ nombre: nuevoNombre, grupo: grupoActivo, direccion: datosCasa.direccion, observaciones: datosCasa.observaciones }]);
+          if (error) throw error;
+        }
+        if (nuevoNombre !== grupoActivo) {
+          const { error } = await supabase.from('casas').update({ grupo: nuevoNombre }).eq('grupo', grupoActivo);
+          if (error) throw error;
+          setGrupoActivo(nuevoNombre);
+        }
+        setShowModal(false);
+        fetchCasas();
+        toast.success('Datos de la casa actualizados.');
+        return;
+      }
       if (editingId) {
         // Actualizar
         const { error } = await supabase.from('casas').update(datosCasa).eq('id', editingId);
@@ -106,11 +141,11 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
         toast.success('Inmueble actualizado correctamente.');
       } else {
         // Crear nuevo
-        const { data, error } = await supabase.from('casas').insert([datosCasa]).select().single();
+        const { data, error } = await supabase.from('casas').insert([tipoModal === 'casa' ? { ...datosCasa, grupo: datosCasa.nombre } : datosCasa]).select().single();
         if (error) throw error;
 
         // Si se creó dentro de una casa agrupada y se indicó un inquilino, crea también su contrato
-        if (grupoActivo && data && inquilino?.trim()) {
+        if (tipoModal === 'interior' && grupoActivo && data && inquilino?.trim()) {
           const { error: errContrato } = await supabase.from('contratos').insert([{
             casa_id: data.id,
             inquilino: inquilino.trim(),
@@ -123,10 +158,10 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
 
         setShowModal(false);
         fetchCasas();
-        toast.success('Inquilino registrado correctamente.');
+        toast.success(tipoModal === 'casa' ? 'Casa creada correctamente.' : 'Interior registrado correctamente.');
 
         // Si se pidió generar contrato, lleva a Contratos para completar la plantilla
-        if (grupoActivo && data && generarContrato) {
+        if (tipoModal === 'interior' && grupoActivo && data && generarContrato) {
           setCasaSeleccionada(data.nombre);
           setActiveTab('contratos');
         }
@@ -164,7 +199,9 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
     grupos[clave].push(casa);
   });
   const nombresGrupos = Object.keys(grupos).sort((a, b) => a.localeCompare(b));
-  const casasDelGrupo = grupoActivo ? (grupos[grupoActivo] || []) : [];
+  const casaCabecera = grupoActivo ? (grupos[grupoActivo] || []).find((c) => c.nombre === grupoActivo) : null;
+  const casasDelGrupo = grupoActivo ? (grupos[grupoActivo] || []).filter((c) => c.nombre !== grupoActivo) : [];
+  const interioresDe = (lista, nombre) => lista.filter((c) => c.nombre !== nombre);
 
   const ocupadasEnGrupo = (lista) => lista.filter((c) => contratosPorCasa[c.id]?.estado === 'activo').length;
 
@@ -181,7 +218,7 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
               >
                 ← Volver a Casas
               </button>
-              <h2 className="text-2xl font-bold text-white">🏠 {grupoActivo} <span className="text-base font-normal text-slate-400">· Inquilinos</span></h2>
+              <h2 className="text-2xl font-bold text-white">🏠 {grupoActivo} <span className="text-base font-normal text-slate-400">· Interiores</span></h2>
             </div>
           ) : (
             <h2 className="text-2xl font-bold text-white">Directorio de Inmuebles</h2>
@@ -192,7 +229,7 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
           onClick={abrirModalNuevo}
           className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-500"
         >
-          {grupoActivo ? '+ Agregar Inquilino' : '+ Agregar Inmueble'}
+          {grupoActivo ? '+ Agregar Interior' : '+ Agregar Casa'}
         </button>
       </div>
 
@@ -209,7 +246,7 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
         // Nivel 1: tarjetas de "Casa" agrupadoras. Al hacer click, entra al detalle de inquilinos.
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
           {nombresGrupos.map((nombreGrupo) => {
-            const lista = grupos[nombreGrupo];
+            const lista = interioresDe(grupos[nombreGrupo], nombreGrupo);
             const ocupadas = ocupadasEnGrupo(lista);
             return (
               <button
@@ -223,7 +260,7 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
                     {nombreGrupo}
                   </h3>
                   <span className="mt-2 inline-flex w-fit items-center rounded-full border border-slate-600/40 bg-slate-700/20 px-2.5 py-0.5 text-[10px] font-semibold text-slate-400">
-                    {lista.length} {lista.length === 1 ? 'unidad' : 'unidades'}
+                    {lista.length} {lista.length === 1 ? 'interior' : 'interiores'}
                   </span>
                 </div>
                 <div className="flex flex-1 items-center justify-between gap-3 p-5">
@@ -242,7 +279,23 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
           })}
         </div>
       ) : (
-        // Nivel 2: inquilinos/unidades dentro de la casa seleccionada
+        // Nivel 2: datos de la casa + interiores con sus inquilinos
+        <>
+        <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-slate-700 bg-slate-800/90 p-5 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <span className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Datos de la casa</span>
+            <h3 className="mt-1 text-lg font-bold text-blue-400">🏘️ {grupoActivo}</h3>
+            <p className="mt-1 text-sm text-slate-300">📍 {casaCabecera?.direccion || 'Sin dirección registrada'}</p>
+            {casaCabecera?.observaciones && <p className="mt-1 text-xs text-slate-400">{casaCabecera.observaciones}</p>}
+            <p className="mt-2 text-xs text-slate-500">{casasDelGrupo.length} {casasDelGrupo.length === 1 ? 'interior' : 'interiores'} · {ocupadasEnGrupo(casasDelGrupo)} ocupados</p>
+          </div>
+          <button onClick={abrirModalEditarCasa} className="shrink-0 rounded-lg bg-slate-700/70 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-amber-500/20 hover:text-amber-300">✏️ Editar datos de la casa</button>
+        </div>
+        {casasDelGrupo.length === 0 && (
+          <div className="mb-5 rounded-2xl border border-dashed border-slate-700 bg-slate-800/80 p-6 text-center text-sm text-slate-400">
+            Aún no hay interiores. Usa «+ Agregar Interior» para registrar uno con su inquilino.
+          </div>
+        )}
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
           {casasDelGrupo.map((casa) => {
             const contrato = contratosPorCasa[casa.id];
@@ -355,6 +408,7 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
             );
           })}
         </div>
+        </>
       )}
 
       {showModal && (
@@ -363,9 +417,9 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
             <div className="shrink-0 border-b border-slate-700/80 bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800/90 px-4 py-3 sm:px-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                    <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-blue-300/80">{grupoActivo ? 'Inquilino' : 'Inmueble'}</p>
+                    <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-blue-300/80">{tipoModal === 'interior' ? 'Interior' : 'Casa'}</p>
                     <h3 className="text-lg font-bold text-white sm:text-xl">
-                      {editingId ? 'Editar' : grupoActivo ? 'Nuevo Inquilino' : 'Nueva Casa'}
+                      {editingId ? (tipoModal === 'casa' ? 'Editar Casa' : 'Editar Interior') : tipoModal === 'interior' ? 'Agregar Interior' : 'Nueva Casa'}
                     </h3>
                   </div>
                 <button
@@ -381,7 +435,7 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
 
             <div className="overflow-y-auto">
               <form onSubmit={guardarCasa} className="space-y-4 p-4 sm:p-6">
-                {!grupoActivo ? (
+                {tipoModal === 'casa' ? (
                   <>
                     <div>
                       <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Nombre de la Casa *</label>
@@ -505,7 +559,7 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
                     type="submit"
                     className="rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 px-6 py-2.5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(59,130,246,0.35)] transition hover:brightness-110"
                   >
-                    {editingId ? 'Actualizar Datos' : grupoActivo ? 'Guardar Inquilino' : 'Guardar Casa'}
+                    {editingId ? 'Actualizar Datos' : tipoModal === 'interior' ? 'Guardar Interior' : 'Guardar Casa'}
                   </button>
                 </div>
               </form>
