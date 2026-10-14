@@ -1,111 +1,168 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+const fmt = (n) => `S/ ${Number(n || 0).toFixed(2)}`;
+
+const parseCargos = (cargos) => {
+  if (!cargos) return [];
+  const lista = typeof cargos === 'string' ? JSON.parse(cargos) : cargos;
+  return lista.filter((c) => c.nombre && c.monto !== '' && c.monto != null);
+};
+
 export const descargarReciboPDF = (registro, contrato) => {
   const doc = new jsPDF();
+  const W = 210;
   const casa = registro.casa || 'General';
   const mes = registro.mes_anio || 'Desconocido';
+  const NAVY = [15, 23, 42];
+  const TEAL = [20, 184, 166];
+  const SLATE = [100, 116, 139];
 
-  // 1. Encabezado Personalizado
-  doc.setFillColor(30, 58, 138); 
-  doc.rect(0, 0, 210, 25, 'F');
-  
+  // Encabezado con banda oscura y acento diagonal
+  doc.setFillColor(...NAVY);
+  doc.rect(0, 0, W, 46, 'F');
+  doc.setFillColor(...TEAL);
+  doc.triangle(W - 70, 0, W, 0, W, 46, 'F');
+  doc.setFillColor(13, 148, 136);
+  doc.triangle(W - 38, 0, W, 0, W, 46, 'F');
+
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(22);
-  doc.setFont("helvetica", "bold");
-  doc.text("CONTROL DE SERVICIOS", 14, 17);
-  
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(26);
+  doc.text('RECIBO', 14, 22);
+  doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
-  doc.setFont("helvetica", "normal");
-  doc.text("Gestión de Inmuebles", 150, 15);
+  doc.setTextColor(148, 163, 184);
+  doc.text('CONTROL DE SERVICIOS · GESTIÓN DE INMUEBLES', 14, 31);
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.text(mes, W - 14, 18, { align: 'right' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text(`Emitido: ${new Date().toLocaleDateString()}`, W - 14, 25, { align: 'right' });
 
-  // 2. Datos del Recibo
-  doc.setTextColor(0, 0, 0);
-  doc.setFontSize(14);
-  doc.setFont("helvetica", "bold");
-  doc.text("RECIBO DE PAGO", 14, 40);
-  
-  doc.setFontSize(11);
-  doc.setFont("helvetica", "normal");
-  doc.text(`Inmueble: ${casa}`, 14, 48);
-  doc.text(`Mes de Facturación: ${mes}`, 14, 54);
-  doc.text(`Fecha de Emisión: ${new Date().toLocaleDateString()}`, 14, 60);
-
-  // 2b. Datos del inquilino (si hay un contrato vigente registrado para esta casa)
+  // Tarjetas de inmueble e inquilino
+  const tarjeta = (x, w, etiqueta, linea1, linea2) => {
+    doc.setFillColor(241, 245, 249);
+    doc.roundedRect(x, 54, w, 24, 3, 3, 'F');
+    doc.setFillColor(...TEAL);
+    doc.roundedRect(x, 54, 2, 24, 1, 1, 'F');
+    doc.setTextColor(...SLATE);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.text(etiqueta, x + 7, 61);
+    doc.setTextColor(...NAVY);
+    doc.setFontSize(12);
+    doc.text(String(linea1), x + 7, 68, { maxWidth: w - 12 });
+    if (linea2) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(...SLATE);
+      doc.text(String(linea2), x + 7, 74, { maxWidth: w - 12 });
+    }
+  };
   if (contrato) {
-    doc.setFont("helvetica", "bold");
-    doc.text(`Inquilino: ${contrato.inquilino}`, 120, 48);
-    doc.setFont("helvetica", "normal");
-    if (contrato.telefono) doc.text(`Teléfono: ${contrato.telefono}`, 120, 54);
+    tarjeta(14, 88, 'INMUEBLE', casa);
+    tarjeta(108, 88, 'INQUILINO', contrato.inquilino, contrato.telefono ? `Tel. ${contrato.telefono}` : '');
+  } else {
+    tarjeta(14, 182, 'INMUEBLE', casa);
   }
 
-  // 3. Generar Tabla Principal (detalle de todo lo facturable)
-  const bodyData = [
-    ['Luz (kWh)', registro.luz_lectura_ant, registro.luz_lectura_act, registro.luz_consumo, `S/ ${registro.luz_total?.toFixed(2)}`],
-    ['Agua (m³)', registro.agua_lectura_ant, registro.agua_lectura_act, registro.agua_consumo, `S/ ${registro.agua_total?.toFixed(2)}`],
-    ['Gas (Recibo Calidda)', '—', '—', '—', `S/ ${registro.gas_total?.toFixed(2)}`],
+  // Detalle por servicio
+  const servicios = [
+    { nombre: 'Luz', unidad: 'kWh', color: [245, 158, 11], ant: registro.luz_lectura_ant, act: registro.luz_lectura_act, consumo: registro.luz_consumo, total: registro.luz_total, cargos: parseCargos(registro.cargos_luz), lecturas: true },
+    { nombre: 'Agua', unidad: 'm³', color: [59, 130, 246], ant: registro.agua_lectura_ant, act: registro.agua_lectura_act, consumo: registro.agua_consumo, total: registro.agua_total, cargos: parseCargos(registro.cargos_agua), lecturas: true },
+    { nombre: 'Gas', unidad: '', color: [249, 115, 22], total: registro.gas_total, cargos: parseCargos(registro.cargos_gas), lecturas: false },
   ];
 
-  autoTable(doc, {
-    startY: 68,
-    head: [['Servicio', 'Lectura Ant.', 'Lectura Act.', 'Consumo', 'Subtotal']],
-    body: bodyData,
-    theme: 'striped',
-    headStyles: { fillColor: [30, 58, 138], textColor: 255 },
-    styles: { fontSize: 10, cellPadding: 6 },
-    columnStyles: { 4: { fontStyle: 'bold', halign: 'right' } }
+  let y = 88;
+  doc.setTextColor(...SLATE);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.text('DETALLE DE SERVICIOS', 14, y);
+  y += 5;
+
+  servicios.forEach((s) => {
+    const alto = 20 + s.cargos.length * 6;
+    doc.setDrawColor(226, 232, 240);
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(14, y, 182, alto, 3, 3, 'FD');
+    doc.setFillColor(...s.color);
+    doc.roundedRect(14, y, 4, alto, 2, 2, 'F');
+
+    doc.setTextColor(...NAVY);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text(s.nombre, 24, y + 9);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...SLATE);
+    doc.text(
+      s.lecturas
+        ? `Lectura ${s.ant} → ${s.act}  ·  Consumo: ${s.consumo} ${s.unidad}`
+        : 'Según recibo del suministro (Calidda)',
+      24, y + 15
+    );
+    doc.setTextColor(...NAVY);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text(fmt(s.total), 190, y + 9, { align: 'right' });
+
+    s.cargos.forEach((c, i) => {
+      const cy = y + 21 + i * 6;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(...SLATE);
+      doc.text(`+ ${c.nombre}`, 28, cy);
+      doc.text(fmt(c.monto), 190, cy, { align: 'right' });
+    });
+    y += alto + 5;
   });
 
-  // 4. NUEVO: Tabla de Desglose de Cargos Adicionales
-  const cargosAdicionales = [];
+  // Total destacado
+  y += 3;
+  doc.setFillColor(...NAVY);
+  doc.roundedRect(14, y, 182, 26, 4, 4, 'F');
+  doc.setFillColor(...TEAL);
+  doc.roundedRect(14, y, 4, 26, 2, 2, 'F');
+  doc.setTextColor(148, 163, 184);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.text('TOTAL A PAGAR', 26, y + 10);
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(22);
+  doc.text(fmt(registro.monto_total_global), 190, y + 17, { align: 'right' });
+  y += 36;
 
-  const procesarCargos = (cargos, servicio) => {
-    if (!cargos) return;
-    // Si viene de la base de datos o del estado local, aseguramos que sea un arreglo
-    const lista = typeof cargos === 'string' ? JSON.parse(cargos) : cargos;
-    lista.forEach(cargo => {
-      if (cargo.nombre && cargo.monto) {
-        cargosAdicionales.push([servicio, cargo.nombre, `S/ ${Number(cargo.monto).toFixed(2)}`]);
-      }
-    });
-  };
-
-  procesarCargos(registro.cargos_luz, 'Luz');
-  procesarCargos(registro.cargos_agua, 'Agua');
-  procesarCargos(registro.cargos_gas, 'Gas');
-
-  if (cargosAdicionales.length > 0) {
-    autoTable(doc, {
-      startY: doc.lastAutoTable.finalY + 8,
-      head: [['Servicio', 'Detalle de Cargo Adicional', 'Monto Extra']],
-      body: cargosAdicionales,
-      theme: 'plain',
-      headStyles: { fillColor: [226, 232, 240], textColor: 0, fontStyle: 'bold' },
-      styles: { fontSize: 9, cellPadding: 4 },
-      columnStyles: { 2: { fontStyle: 'bold', halign: 'right' } }
-    });
-  }
-
-  // 5. Total Final Dinámico (se empuja hacia abajo si hay tabla de cargos)
-  const finalY = doc.lastAutoTable.finalY + 15;
+  // Datos de pago
+  doc.setFillColor(250, 245, 255);
+  doc.setDrawColor(216, 180, 254);
+  doc.roundedRect(14, y, 182, 30, 3, 3, 'FD');
+  doc.setFillColor(116, 34, 132);
+  doc.circle(28, y + 15, 7, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Y', 28, y + 18.5, { align: 'center' });
+  doc.setTextColor(116, 34, 132);
+  doc.setFontSize(8);
+  doc.text('PAGA CON YAPE', 42, y + 9);
+  doc.setTextColor(...NAVY);
   doc.setFontSize(14);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(220, 38, 38); 
-  doc.text(`TOTAL A PAGAR: S/ ${registro.monto_total_global?.toFixed(2)}`, 130, finalY);
+  doc.text('+51 969 368 759', 42, y + 17);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(...SLATE);
+  doc.text('A nombre de Yda Violeta Mestanza Montoya', 42, y + 24);
 
-  // 6. Pie de página con datos de pago (Yape)
-  doc.setTextColor(0, 0, 0);
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "bold");
-  doc.text("DATOS PARA EL PAGO:", 14, finalY + 15);
-  doc.setFont("helvetica", "normal");
-  doc.text("Yape: +51 969 368 759", 14, finalY + 22);
-  doc.text("A nombre de: Yda Violeta Mestanza Montoya", 14, finalY + 28);
-  doc.text("Enviar comprobante una vez realizado el pago.", 14, finalY + 36);
+  // Pie
+  doc.setFontSize(8);
+  doc.setTextColor(...SLATE);
+  doc.text('Envía tu comprobante una vez realizado el pago. ¡Gracias!', W / 2, 287, { align: 'center' });
 
   doc.save(`Recibo_${casa.replace(/\s+/g, '_')}_${mes}.pdf`);
 };
-
 // ===================== GENERADOR DE CONTRATO DE ARRENDAMIENTO =====================
 
 const formatearFecha = (f) => {

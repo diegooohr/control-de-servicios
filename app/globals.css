@@ -20,8 +20,7 @@ html {
   scroll-behavior: smooth;
   width: 100%;
   max-width: 100%;
-  overflow-x: hidden;
-  overscroll-behavior: none;
+  overflow-x: clip;
   background-color: #020817;
 }
 
@@ -30,8 +29,7 @@ body {
   width: 100%;
   min-height: 100dvh;
   max-width: 100%;
-  overflow-x: hidden;
-  overscroll-behavior: none;
+  overflow-x: clip;
   background:
     radial-gradient(circle at top, rgba(96, 165, 250, 0.18), transparent 28%),
     radial-gradient(circle at bottom right, rgba(16, 185, 129, 0.12), transparent 22%),

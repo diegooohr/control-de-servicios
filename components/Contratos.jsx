@@ -61,12 +61,12 @@ export default function Contratos({ casaSeleccionada }) {
     setLoading(true);
     try {
       const [{ data: casasData, error: errCasas }, { data: contratosData, error: errContratos }] = await Promise.all([
-        supabase.from('casas').select('id, nombre').order('nombre', { ascending: true }),
+        supabase.from('casas').select('id, nombre, grupo').order('nombre', { ascending: true }),
         supabase.from('contratos').select('*').order('fecha_inicio', { ascending: false }),
       ]);
       if (errCasas) throw errCasas;
       if (errContratos) throw errContratos;
-      setCasas(casasData || []);
+      setCasas((casasData || []).filter((c) => !(c.grupo?.trim() && c.grupo.trim() === c.nombre)));
       setContratos(contratosData || []);
     } catch (err) {
       console.error('Error cargando contratos:', err.message);

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '../lib/supabaseClient';
@@ -98,7 +98,7 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
 
   // Edita los datos de la casa (fila "cabecera" cuyo nombre coincide con el grupo); si no existe, se crea al guardar
   const abrirModalEditarCasa = () => {
-    const cabecera = (grupos[grupoActivo] || []).find((c) => c.nombre === grupoActivo);
+    const cabecera = (grupos[grupoActivo] || []).find(esCabecera);
     setEditingId(cabecera?.id || null);
     setTipoModal('casa');
     setFormData({
@@ -199,9 +199,10 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
     grupos[clave].push(casa);
   });
   const nombresGrupos = Object.keys(grupos).sort((a, b) => a.localeCompare(b));
-  const casaCabecera = grupoActivo ? (grupos[grupoActivo] || []).find((c) => c.nombre === grupoActivo) : null;
-  const casasDelGrupo = grupoActivo ? (grupos[grupoActivo] || []).filter((c) => c.nombre !== grupoActivo) : [];
-  const interioresDe = (lista, nombre) => lista.filter((c) => c.nombre !== nombre);
+  const esCabecera = (c) => !!c.grupo?.trim() && c.grupo.trim() === c.nombre;
+  const casaCabecera = grupoActivo ? (grupos[grupoActivo] || []).find(esCabecera) : null;
+  const casasDelGrupo = grupoActivo ? (grupos[grupoActivo] || []).filter((c) => !esCabecera(c)) : [];
+  const interioresDe = (lista) => lista.filter((c) => !esCabecera(c));
 
   const ocupadasEnGrupo = (lista) => lista.filter((c) => contratosPorCasa[c.id]?.estado === 'activo').length;
 
@@ -246,7 +247,7 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
         // Nivel 1: tarjetas de "Casa" agrupadoras. Al hacer click, entra al detalle de inquilinos.
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
           {nombresGrupos.map((nombreGrupo) => {
-            const lista = interioresDe(grupos[nombreGrupo], nombreGrupo);
+            const lista = interioresDe(grupos[nombreGrupo]);
             const ocupadas = ocupadasEnGrupo(lista);
             return (
               <button

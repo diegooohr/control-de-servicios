@@ -31,7 +31,7 @@ export default function Dashboard({ setActiveTab, setCasaSeleccionada }) {
         if (e1) throw e1;
         if (e2) throw e2;
         if (e3) throw e3;
-        setCasas(casasData || []);
+        setCasas((casasData || []).filter((c) => !(c.grupo?.trim() && c.grupo.trim() === c.nombre)));
         setContratos(contratosData || []);
         setRegistrosMes(registrosData || []);
       } catch (err) {
