@@ -4,7 +4,19 @@ import { toast } from 'sonner';
 import { supabase } from '../lib/supabaseClient';
 import { descargarReciboPDF } from '../utils/pdfGenerator'; 
 
-export default function RegistroServicios({ casaSeleccionada }) {
+export default function RegistroServicios({ casaSeleccionada, setCasaSeleccionada }) {
+  const [listaCasas, setListaCasas] = useState([]);
+  const [grupoSel, setGrupoSel] = useState('');
+  useEffect(() => {
+    supabase.from('casas').select('nombre, grupo').order('nombre').then(({ data }) => {
+      const filas = (data || []).filter((c) => !(c.grupo?.trim() && c.grupo.trim() === c.nombre));
+      setListaCasas(filas);
+      const actual = filas.find((c) => c.nombre === casaSeleccionada);
+      if (actual) setGrupoSel(actual.grupo || actual.nombre);
+    });
+  }, []);
+  const grupos = [...new Set(listaCasas.map((c) => c.grupo || c.nombre))];
+  const interiores = listaCasas.filter((c) => (c.grupo || c.nombre) === grupoSel);
   const [mesAnio, setMesAnio] = useState(() => {
     const hoy = new Date();
     return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
@@ -195,6 +207,22 @@ export default function RegistroServicios({ casaSeleccionada }) {
         </div>
 
         <form onSubmit={calcularYGuardar} className="space-y-6">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-sm text-slate-300">Casa</label>
+              <select value={grupoSel} onChange={(e) => { setGrupoSel(e.target.value); setCasaSeleccionada?.(''); }} className="w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-white" required>
+                <option value="">Selecciona una casa</option>
+                {grupos.map((g) => <option key={g} value={g}>{g}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm text-slate-300">Interior</label>
+              <select value={casaSeleccionada || ''} onChange={(e) => setCasaSeleccionada?.(e.target.value)} disabled={!grupoSel} className="w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-white disabled:opacity-50" required>
+                <option value="">{grupoSel ? 'Selecciona un interior' : 'Primero elige la casa'}</option>
+                {interiores.map((c) => <option key={c.nombre} value={c.nombre}>{c.nombre}</option>)}
+              </select>
+            </div>
+          </div>
           <div className="max-w-xs">
             <label className="mb-1 block text-sm text-slate-300">Mes de Facturación</label>
             <input

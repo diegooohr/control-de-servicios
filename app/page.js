@@ -32,7 +32,7 @@ export default function Home() {
             {activeTab === 'dashboard' && <Dashboard setActiveTab={setActiveTab} setCasaSeleccionada={setCasaSeleccionada} />}
             {activeTab === 'casas' && <Casas setActiveTab={setActiveTab} setCasaSeleccionada={setCasaSeleccionada} />}
             {activeTab === 'contratos' && <Contratos casaSeleccionada={casaSeleccionada} />}
-            {activeTab === 'registro' && <RegistroServicios casaSeleccionada={casaSeleccionada} />}
+            {activeTab === 'registro' && <RegistroServicios casaSeleccionada={casaSeleccionada} setCasaSeleccionada={setCasaSeleccionada} />}
             {activeTab === 'historial' && <HistorialServicios />}
             {activeTab === 'estadisticas' && <Estadisticas />}
           </div>
