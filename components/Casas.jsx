@@ -236,6 +236,27 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
     }
   };
 
+  const eliminarCasaCompleta = async (nombreGrupo) => {
+    const filas = grupos[nombreGrupo] || [];
+    const ok = await confirm({
+      title: 'Eliminar casa',
+      message: `¿Eliminar "${nombreGrupo}" junto con sus ${filas.filter((c) => !esCabecera(c)).length} departamentos y sus contratos? Esta acción no se puede deshacer.`,
+      confirmLabel: 'Eliminar casa',
+    });
+    if (!ok) return;
+    try {
+      const { error } = await supabase.from('casas').delete().in('id', filas.map((c) => c.id));
+      if (error) throw error;
+      setGrupoActivo(null);
+      setSelectedInteriorId(null);
+      fetchCasas();
+      toast.success('Casa eliminada.');
+    } catch (err) {
+      console.error('Error al eliminar casa:', err.message);
+      toast.error('No se pudo eliminar la casa.');
+    }
+  };
+
   const eliminarCasa = async (id, nombre) => {
     const ok = await confirm({
       title: 'Eliminar inmueble',
@@ -365,7 +386,10 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
             {casaCabecera?.observaciones && <p className="mt-1 text-xs text-slate-400">{casaCabecera.observaciones}</p>}
             <p className="mt-2 text-xs text-slate-500">{casasDelGrupo.length} {casasDelGrupo.length === 1 ? 'interior' : 'interiores'} · {ocupadasEnGrupo(casasDelGrupo)} ocupados</p>
           </div>
-          <button onClick={abrirModalEditarCasa} className="shrink-0 rounded-lg bg-slate-700/70 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-amber-500/20 hover:text-amber-300">✏️ Editar datos de la casa</button>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <button onClick={abrirModalEditarCasa} className="rounded-lg bg-slate-700/70 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-amber-500/20 hover:text-amber-300">✏️ Editar datos de la casa</button>
+            <button onClick={() => eliminarCasaCompleta(grupoActivo)} className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-300 transition hover:bg-red-500 hover:text-white">🗑️ Eliminar casa</button>
+          </div>
         </div>
         {casasDelGrupo.length === 0 && (
           <div className="mb-5 rounded-2xl border border-dashed border-slate-700 bg-slate-800/80 p-6 text-center text-sm text-slate-400">

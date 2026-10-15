@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '../lib/supabaseClient';
+import Modal from './Modal';
 import { getPrivateImageUrl, getPropertyImageUrl, uploadImages, validateImages } from '../lib/propertyStorage';
 
 const hoy = () => new Date().toISOString().slice(0, 10);
@@ -156,8 +157,8 @@ export default function DetalleInterior({ inmueble, casa, setActiveTab, setCasaS
           <h2 className="text-2xl font-bold text-white">{inmueble.nombre}</h2>
           <p className="mt-1 text-sm text-slate-400">{casa.nombre} · {inmueble.direccion || 'Ubicación no especificada'}</p>
         </div>
-        <button type="button" onClick={() => { setFormData(formularioInicial()); setShowForm((actual) => !actual); }} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500">
-          {showForm ? 'Cerrar formulario' : '+ Agregar inquilino'}
+        <button type="button" onClick={() => { setFormData(formularioInicial()); setShowForm(true); }} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500">
+          + Agregar inquilino
         </button>
       </div>
 
@@ -229,7 +230,8 @@ export default function DetalleInterior({ inmueble, casa, setActiveTab, setCasaS
       </div>
 
       {showForm && (
-        <form onSubmit={guardarInquilino} className="space-y-5 rounded-2xl border border-emerald-500/30 bg-slate-800/95 p-5">
+        <Modal onClose={() => setShowForm(false)}>
+        <form onSubmit={guardarInquilino} className="my-auto max-h-[90vh] w-[min(94vw,44rem)] space-y-5 overflow-y-auto rounded-2xl border border-emerald-500/30 bg-slate-800 p-5">
           <div><h3 className="text-lg font-bold text-white">Registrar inquilino</h3><p className="text-sm text-slate-400">Los datos crearán el contrato de alquiler para {inmueble.nombre}.</p></div>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="text-xs text-slate-400">Nombres completos *<input required value={formData.nombres} onChange={(event) => actualizarCampo('nombres', event.target.value)} className={`${inputClass} mt-1`} /></label>
@@ -252,6 +254,7 @@ export default function DetalleInterior({ inmueble, casa, setActiveTab, setCasaS
           {formData.tienePareja === 'si' && <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">La aplicación no tiene inicio de sesión. Aunque el bucket no es público, el acceso anónimo actual permite solicitar enlaces temporales a los documentos.</p>}
           <div className="flex justify-end gap-3"><button type="button" onClick={() => setShowForm(false)} className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-300">Cancelar</button><button disabled={saving} className="rounded-xl bg-emerald-600 px-5 py-2 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Guardando...' : 'Guardar inquilino y contrato'}</button></div>
         </form>
+        </Modal>
       )}
     </section>
   );
