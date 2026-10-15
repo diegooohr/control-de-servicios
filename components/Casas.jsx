@@ -4,6 +4,8 @@ import { toast } from 'sonner';
 import { supabase } from '../lib/supabaseClient';
 import Modal from './Modal';
 import { useConfirm } from './ConfirmProvider';
+import DetalleInterior from './DetalleInterior';
+import { getPropertyImageUrl, uploadImages, validateImages } from '../lib/propertyStorage';
 
 const hoy = () => new Date().toISOString().slice(0, 10);
 
@@ -20,8 +22,12 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
   const [ultimoRegistroPorCasa, setUltimoRegistroPorCasa] = useState({});
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState(null);
+  const [selectedInteriorId, setSelectedInteriorId] = useState(null);
   const [grupoActivo, setGrupoActivo] = useState(null);
   const [tipoModal, setTipoModal] = useState('casa');
+  const [casaParaAgregarInterior, setCasaParaAgregarInterior] = useState(null);
+  const [casaCreadaPendiente, setCasaCreadaPendiente] = useState(null);
+  const [fotosSeleccionadas, setFotosSeleccionadas] = useState([]);
 
   // Estados para la ventana emergente (Modal)
   const [showModal, setShowModal] = useState(false);
@@ -29,6 +35,7 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
   const [formData, setFormData] = useState({
     nombre: '', grupo: '', direccion: '', observaciones: '',
     hayInquilino: false, inquilino: '', apellido: '', dni: '', telefonoInquilino: '', generarContrato: false,
+    caracteristicas: { dormitorios: '', banos: '', area_m2: '', pisos: '' },
   });
 
   useEffect(() => {
@@ -80,7 +87,9 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
     setFormData({
       nombre: '', grupo: grupoActivo || '', direccion: '', observaciones: '',
       hayInquilino: false, inquilino: '', apellido: '', dni: '', telefonoInquilino: '', generarContrato: false,
+      caracteristicas: { dormitorios: '', banos: '', area_m2: '', pisos: '' },
     });
+    setFotosSeleccionadas([]);
     setShowModal(true);
   };
 
@@ -92,7 +101,9 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
       grupo: casa.grupo || '',
       direccion: casa.direccion || '', observaciones: casa.observaciones || '',
       hayInquilino: false, inquilino: '', apellido: '', dni: '', telefonoInquilino: '', generarContrato: false,
+      caracteristicas: casa.caracteristicas || { dormitorios: '', banos: '', area_m2: '', pisos: '' },
     });
+    setFotosSeleccionadas([]);
     setShowModal(true);
   };
 
@@ -105,22 +116,80 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
       nombre: grupoActivo, grupo: grupoActivo,
       direccion: cabecera?.direccion || '', observaciones: cabecera?.observaciones || '',
       hayInquilino: false, inquilino: '', apellido: '', dni: '', telefonoInquilino: '', generarContrato: false,
+      caracteristicas: cabecera?.caracteristicas || { dormitorios: '', banos: '', area_m2: '', pisos: '' },
     });
+    setFotosSeleccionadas([]);
     setShowModal(true);
   };
 
+  const seleccionarFotos = (event) => {
+    const files = Array.from(event.target.files || []);
+    try {
+      validateImages(files);
+      setFotosSeleccionadas(files);
+    } catch (error) {
+      toast.warning(error.message);
+      event.target.value = '';
+    }
+  };
+
+  const guardarFotos = async (inmuebleId, fotosExistentes = []) => {
+    if (fotosSeleccionadas.length === 0) return fotosExistentes;
+    const nuevasFotos = await uploadImages('property-images', inmuebleId, fotosSeleccionadas);
+    const fotos = [...fotosExistentes, ...nuevasFotos];
+    const { error } = await supabase.from('casas').update({ fotos }).eq('id', inmuebleId);
+    if (error) throw error;
+    return fotos;
+  };
+
+  const actualizarCaracteristica = (campo, valor) => setFormData((actual) => ({
+    ...actual,
+    caracteristicas: { ...actual.caracteristicas, [campo]: valor },
+  }));
+
+  const renderCaracteristicasYFotos = (inmueble) => (
+    <>
+      <div className="space-y-3">
+        <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Características</p>
+        <div className="grid grid-cols-2 gap-3">
+          {[
+            ['dormitorios', 'Dormitorios'],
+            ['banos', 'Baños'],
+            ['area_m2', 'Área (m²)'],
+            ['pisos', 'Pisos'],
+          ].map(([campo, etiqueta]) => (
+            <label key={campo} className="text-xs text-slate-400">
+              {etiqueta}
+              <input type="number" min="0" step={campo === 'area_m2' ? 'any' : '1'} value={formData.caracteristicas[campo] || ''} onChange={(event) => actualizarCaracteristica(campo, event.target.value)} className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-white outline-none focus:border-blue-500" />
+            </label>
+          ))}
+        </div>
+      </div>
+      <div>
+        <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Fotos {inmueble?.fotos?.length ? `(${inmueble.fotos.length} guardadas)` : ''}</label>
+        {inmueble?.fotos?.length > 0 && <div className="mb-3 flex gap-2 overflow-x-auto">{inmueble.fotos.map((path) => <img key={path} src={getPropertyImageUrl(path)} alt="Foto registrada del inmueble" className="h-16 w-20 shrink-0 rounded-lg object-cover" />)}</div>}
+        <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={seleccionarFotos} className="w-full rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-sm text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-700 file:px-3 file:py-1.5 file:text-xs file:text-white" />
+        <p className="mt-1 text-[11px] text-slate-500">JPG, PNG o WebP; máximo 8 MB por foto.</p>
+        {fotosSeleccionadas.length > 0 && <p className="mt-1 text-xs text-emerald-300">{fotosSeleccionadas.length} foto(s) nuevas seleccionadas.</p>}
+      </div>
+    </>
+  );
+
   const guardarCasa = async (e) => {
     e.preventDefault();
-    const { hayInquilino, inquilino, apellido, dni, telefonoInquilino, generarContrato, ...datosCasa } = formData;
+    const { nombre, grupo, direccion, observaciones, caracteristicas } = formData;
+    const datosCasa = { nombre, grupo, direccion, observaciones, caracteristicas };
     try {
       if (tipoModal === 'casa' && grupoActivo) {
         const nuevoNombre = datosCasa.nombre.trim();
         if (editingId) {
-          const { error } = await supabase.from('casas').update({ nombre: nuevoNombre, grupo: nuevoNombre, direccion: datosCasa.direccion, observaciones: datosCasa.observaciones }).eq('id', editingId);
+          const { error } = await supabase.from('casas').update({ nombre: nuevoNombre, grupo: nuevoNombre, direccion: datosCasa.direccion, observaciones: datosCasa.observaciones, caracteristicas: datosCasa.caracteristicas }).eq('id', editingId);
           if (error) throw error;
+          await guardarFotos(editingId, (grupos[grupoActivo] || []).find((c) => c.id === editingId)?.fotos || []);
         } else {
-          const { error } = await supabase.from('casas').insert([{ nombre: nuevoNombre, grupo: grupoActivo, direccion: datosCasa.direccion, observaciones: datosCasa.observaciones }]);
+          const { data, error } = await supabase.from('casas').insert([{ nombre: nuevoNombre, grupo: grupoActivo, direccion: datosCasa.direccion, observaciones: datosCasa.observaciones, caracteristicas: datosCasa.caracteristicas }]).select().single();
           if (error) throw error;
+          await guardarFotos(data.id);
         }
         if (nuevoNombre !== grupoActivo) {
           const { error } = await supabase.from('casas').update({ grupo: nuevoNombre }).eq('grupo', grupoActivo);
@@ -136,40 +205,34 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
         // Actualizar
         const { error } = await supabase.from('casas').update(datosCasa).eq('id', editingId);
         if (error) throw error;
+        await guardarFotos(editingId, inmuebles.find((c) => c.id === editingId)?.fotos || []);
+        const casaPendiente = casaCreadaPendiente?.id === editingId ? casaCreadaPendiente : null;
         setShowModal(false);
         fetchCasas();
         toast.success('Inmueble actualizado correctamente.');
+        if (casaPendiente) {
+          setCasaParaAgregarInterior(casaPendiente);
+          setCasaCreadaPendiente(null);
+        }
       } else {
         // Crear nuevo
         const { data, error } = await supabase.from('casas').insert([tipoModal === 'casa' ? { ...datosCasa, grupo: datosCasa.nombre } : datosCasa]).select().single();
         if (error) throw error;
-
-        // Si se creó dentro de una casa agrupada y se indicó un inquilino, crea también su contrato
-        if (tipoModal === 'interior' && grupoActivo && data && hayInquilino && inquilino?.trim()) {
-          const { error: errContrato } = await supabase.from('contratos').insert([{
-            casa_id: data.id,
-            inquilino: `${inquilino.trim()} ${apellido.trim()}`.trim(),
-            arrendatario_dni: dni.trim() || null,
-            telefono: telefonoInquilino || null,
-            fecha_inicio: hoy(),
-            estado: 'activo',
-          }]);
-          if (errContrato) throw errContrato;
-        }
+        setEditingId(data.id);
+        if (tipoModal === 'casa') setCasaCreadaPendiente({ id: data.id, nombre: data.nombre });
+        await guardarFotos(data.id);
 
         setShowModal(false);
         fetchCasas();
         toast.success(tipoModal === 'casa' ? 'Casa creada correctamente.' : 'Interior registrado correctamente.');
-
-        // Si se pidió generar contrato, lleva a Contratos para completar la plantilla
-        if (tipoModal === 'interior' && grupoActivo && data && hayInquilino && generarContrato) {
-          setCasaSeleccionada(data.nombre);
-          setActiveTab('contratos');
+        if (tipoModal === 'casa') {
+          setCasaParaAgregarInterior({ id: data.id, nombre: data.nombre });
+          setCasaCreadaPendiente(null);
         }
       }
     } catch (err) {
       console.error('Error al guardar:', err.message);
-      toast.error('Error al guardar la propiedad.');
+      toast.error(`Error al guardar la propiedad: ${err.message}`);
     }
   };
 
@@ -203,6 +266,7 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
   const esCabecera = (c) => !!c.grupo?.trim() && c.grupo.trim() === c.nombre;
   const casaCabecera = grupoActivo ? (grupos[grupoActivo] || []).find(esCabecera) : null;
   const casasDelGrupo = grupoActivo ? (grupos[grupoActivo] || []).filter((c) => !esCabecera(c)) : [];
+  const interiorSeleccionado = casasDelGrupo.find((casa) => casa.id === selectedInteriorId);
   const interioresDe = (lista) => lista.filter((c) => !esCabecera(c));
 
   const ocupadasEnGrupo = (lista) => lista.filter((c) => contratosPorCasa[c.id]?.estado === 'activo').length;
@@ -215,24 +279,24 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
           {grupoActivo ? (
             <div>
               <button
-                onClick={() => setGrupoActivo(null)}
+                onClick={() => { setGrupoActivo(null); setSelectedInteriorId(null); }}
                 className="mb-1 flex items-center gap-1 text-xs font-semibold text-blue-400 transition hover:text-blue-300"
               >
                 ← Volver a Casas
               </button>
-              <h2 className="text-2xl font-bold text-white">🏠 {grupoActivo} <span className="text-base font-normal text-slate-400">· Interiores</span></h2>
+              <h2 className="text-2xl font-bold text-white">🏠 {grupoActivo} <span className="text-base font-normal text-slate-400">· {interiorSeleccionado ? 'Departamento' : 'Interiores'}</span></h2>
             </div>
           ) : (
             <h2 className="text-2xl font-bold text-white">Directorio de Inmuebles</h2>
           )}
         </div>
 
-        <button
+        {!interiorSeleccionado && <button
           onClick={abrirModalNuevo}
           className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-500"
         >
-          {grupoActivo ? '+ Agregar Interior' : '+ Agregar Casa'}
-        </button>
+          {grupoActivo ? '+ Agregar Interior / Departamento' : '+ Agregar Casa'}
+        </button>}
       </div>
 
       {loading ? (
@@ -253,7 +317,7 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
             return (
               <button
                 key={nombreGrupo}
-                onClick={() => setGrupoActivo(nombreGrupo)}
+                onClick={() => { setGrupoActivo(nombreGrupo); setSelectedInteriorId(null); }}
                 className="group flex flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-800/90 text-left shadow-[0_16px_35px_rgba(2,6,23,0.28)] transition duration-200 hover:-translate-y-1 hover:border-blue-500/40 hover:shadow-[0_22px_45px_rgba(37,99,235,0.12)]"
               >
                 <div className="border-b border-slate-700 bg-gradient-to-r from-slate-800 via-slate-800 to-slate-900 p-5">
@@ -280,6 +344,14 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
             );
           })}
         </div>
+      ) : interiorSeleccionado ? (
+        <DetalleInterior
+          inmueble={interiorSeleccionado}
+          casa={casaCabecera || { nombre: grupoActivo, direccion: '' }}
+          setActiveTab={setActiveTab}
+          setCasaSeleccionada={setCasaSeleccionada}
+          onBack={() => setSelectedInteriorId(null)}
+        />
       ) : (
         // Nivel 2: datos de la casa + interiores con sus inquilinos
         <>
@@ -288,6 +360,8 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
             <span className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Datos de la casa</span>
             <h3 className="mt-1 text-lg font-bold text-blue-400">🏘️ {grupoActivo}</h3>
             <p className="mt-1 text-sm text-slate-300">📍 {casaCabecera?.direccion || 'Sin dirección registrada'}</p>
+            {casaCabecera?.caracteristicas && <p className="mt-2 text-xs text-slate-400">{Object.entries(casaCabecera.caracteristicas).filter(([, value]) => value).map(([key, value]) => `${key.replace('_m2', ' m²')}: ${value}`).join(' · ')}</p>}
+            {casaCabecera?.fotos?.length > 0 && <div className="mt-3 flex gap-2 overflow-x-auto">{casaCabecera.fotos.map((path) => <img key={path} src={getPropertyImageUrl(path)} alt={`Foto de ${grupoActivo}`} className="h-16 w-20 shrink-0 rounded-lg object-cover" />)}</div>}
             {casaCabecera?.observaciones && <p className="mt-1 text-xs text-slate-400">{casaCabecera.observaciones}</p>}
             <p className="mt-2 text-xs text-slate-500">{casasDelGrupo.length} {casasDelGrupo.length === 1 ? 'interior' : 'interiores'} · {ocupadasEnGrupo(casasDelGrupo)} ocupados</p>
           </div>
@@ -295,7 +369,7 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
         </div>
         {casasDelGrupo.length === 0 && (
           <div className="mb-5 rounded-2xl border border-dashed border-slate-700 bg-slate-800/80 p-6 text-center text-sm text-slate-400">
-            Aún no hay interiores. Usa «+ Agregar Interior» para registrar uno con su inquilino.
+            Aún no hay interiores. Usa «+ Agregar Interior / Departamento» para registrar uno.
           </div>
         )}
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -388,6 +462,12 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
 
                 <div className="mt-auto grid grid-cols-3 gap-px bg-slate-700">
                   <button
+                    onClick={() => setSelectedInteriorId(casa.id)}
+                    className="col-span-3 flex items-center justify-center gap-1.5 bg-blue-700/80 px-3 py-3 text-xs font-semibold text-white transition hover:bg-blue-600"
+                  >
+                    Abrir expediente del departamento →
+                  </button>
+                  <button
                     onClick={() => {
                       setCasaSeleccionada(casa.nombre);
                       setActiveTab('contratos');
@@ -449,12 +529,13 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
                         className="w-full rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                         placeholder="Ej: Casa de Fernando"
                       />
-                      <p className="mt-1.5 text-[11px] text-slate-500">Luego, al entrar a esta casa, podrás agregar los interiores/departamentos y sus inquilinos.</p>
+                      <p className="mt-1.5 text-[11px] text-slate-500">Después podrás agregar departamentos con sus características y fotos, y registrar sus inquilinos.</p>
                     </div>
 
                     <div>
-                      <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Dirección exacta</label>
+                      <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Dirección exacta {!editingId && '*'}</label>
                       <input
+                        required={!editingId}
                         type="text"
                         value={formData.direccion}
                         onChange={e => setFormData({ ...formData, direccion: e.target.value })}
@@ -462,6 +543,8 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
                         placeholder="Ej: Av. Principal 123..."
                       />
                     </div>
+
+                    {renderCaracteristicasYFotos(editingId ? inmuebles.find((c) => c.id === editingId) : null)}
 
                     <div>
                       <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Observaciones</label>
@@ -500,45 +583,7 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
                       </datalist>
                     </div>
 
-                    <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-3">
-                      <p className="mb-2 text-sm text-slate-300">?Hay inquilino en este interior?</p>
-                      <div className="flex gap-2">
-                        {[[true, 'S?'], [false, 'No']].map(([v, l]) => (
-                          <button key={l} type="button" onClick={() => setFormData({ ...formData, hayInquilino: v })} className={`rounded-lg border px-4 py-1.5 text-sm font-semibold transition ${formData.hayInquilino === v ? 'border-blue-500 bg-blue-600 text-white' : 'border-slate-600 bg-slate-800 text-slate-300 hover:border-slate-400'}`}>{l}</button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {formData.hayInquilino && !editingId && (
-                      <>
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <div>
-                          <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Nombre completo *</label>
-                          <input type="text" required value={formData.inquilino} onChange={e => setFormData({ ...formData, inquilino: e.target.value })} className="w-full rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" placeholder="Ej: Juana Mar?a" />
-                        </div>
-                        <div>
-                          <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Apellidos *</label>
-                          <input type="text" required value={formData.apellido} onChange={e => setFormData({ ...formData, apellido: e.target.value })} className="w-full rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" placeholder="Ej: Aviles P?rez" />
-                        </div>
-                        <div>
-                          <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">DNI</label>
-                          <input type="text" value={formData.dni} onChange={e => setFormData({ ...formData, dni: e.target.value })} className="w-full rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" placeholder="8 d?gitos" />
-                        </div>
-                        <div>
-                          <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Tel?fono</label>
-                          <input type="text" value={formData.telefonoInquilino} onChange={e => setFormData({ ...formData, telefonoInquilino: e.target.value })} className="w-full rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" placeholder="Ej: 999 999 999" />
-                        </div>
-                        </div>
-                    <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-3">
-                      <p className="mb-2 text-sm text-slate-300">?Deseas generar el contrato ahora?</p>
-                      <div className="flex gap-2">
-                        {[[true, 'S?'], [false, 'No']].map(([v, l]) => (
-                          <button key={l} type="button" onClick={() => setFormData({ ...formData, generarContrato: v })} className={`rounded-lg border px-4 py-1.5 text-sm font-semibold transition ${formData.generarContrato === v ? 'border-blue-500 bg-blue-600 text-white' : 'border-slate-600 bg-slate-800 text-slate-300 hover:border-slate-400'}`}>{l}</button>
-                        ))}
-                      </div>
-                    </div>
-                      </>
-                    )}
+                    {renderCaracteristicasYFotos(editingId ? inmuebles.find((c) => c.id === editingId) : null)}
 
                     <div>
                       <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Observaciones</label>
@@ -569,6 +614,34 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {casaParaAgregarInterior && (
+        <Modal onClose={() => setCasaParaAgregarInterior(null)}>
+          <div className="my-auto w-[min(92vw,30rem)] rounded-2xl border border-slate-700 bg-slate-800 p-6 shadow-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-300">Casa registrada</p>
+            <h3 className="mt-2 text-xl font-bold text-white">¿Deseas agregar interiores o departamentos a {casaParaAgregarInterior.nombre}?</h3>
+            <p className="mt-2 text-sm text-slate-400">Puedes registrar sus características y fotos ahora o hacerlo más adelante.</p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button type="button" onClick={() => setCasaParaAgregarInterior(null)} className="rounded-xl border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-300">Ahora no</button>
+              <button type="button" onClick={() => {
+                const casa = casaParaAgregarInterior;
+                setCasaParaAgregarInterior(null);
+                setGrupoActivo(casa.nombre);
+                setSelectedInteriorId(null);
+                setEditingId(null);
+                setTipoModal('interior');
+                setFormData({
+                  nombre: '', grupo: casa.nombre, direccion: '', observaciones: '',
+                  hayInquilino: false, inquilino: '', apellido: '', dni: '', telefonoInquilino: '', generarContrato: false,
+                  caracteristicas: { dormitorios: '', banos: '', area_m2: '', pisos: '' },
+                });
+                setFotosSeleccionadas([]);
+                setShowModal(true);
+              }} className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500">Sí, agregar departamento</button>
             </div>
           </div>
         </Modal>
