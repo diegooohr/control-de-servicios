@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from 'react';
 
@@ -46,7 +46,6 @@ const ITEMS = [
   { key: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
   { key: 'casas', label: 'Casas', icon: 'casas' },
   { key: 'contratos', label: 'Contratos', icon: 'contratos' },
-  { key: 'registro', label: 'Nuevo Registro', icon: 'registro' },
   { key: 'historial', label: 'Historial', icon: 'historial' },
   { key: 'estadisticas', label: 'Estadísticas', icon: 'estadisticas' },
 ];

@@ -7,13 +7,7 @@ import { useConfirm } from './ConfirmProvider';
 import DetalleInterior from './DetalleInterior';
 import { getPropertyImageUrl, uploadImages, validateImages } from '../lib/propertyStorage';
 
-const hoy = () => new Date().toISOString().slice(0, 10);
-
-function diasHasta(fecha) {
-  if (!fecha) return null;
-  const diff = new Date(fecha) - new Date(hoy());
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
-}
+import { alertasContrato, alertaClases } from '../lib/alertas';
 
 export default function Casas({ setActiveTab, setCasaSeleccionada }) {
   const confirm = useConfirm();
@@ -163,6 +157,14 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
               <input type="number" min="0" step={campo === 'area_m2' ? 'any' : '1'} value={formData.caracteristicas[campo] || ''} onChange={(event) => actualizarCaracteristica(campo, event.target.value)} className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-white outline-none focus:border-blue-500" />
             </label>
           ))}
+          <div className="col-span-2 flex flex-wrap gap-4">
+            {[['cocina', 'Cocina'], ['lavanderia', 'Lavandería'], ['patio', 'Patio']].map(([campo, etiqueta]) => (
+              <label key={campo} className="flex items-center gap-2 text-sm text-slate-200">
+                <input type="checkbox" checked={Boolean(formData.caracteristicas[campo])} onChange={(event) => actualizarCaracteristica(campo, event.target.checked)} className="h-4 w-4 accent-blue-500" />
+                {etiqueta}
+              </label>
+            ))}
+          </div>
         </div>
       </div>
       <div>
@@ -381,7 +383,7 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
             <span className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Datos de la casa</span>
             <h3 className="mt-1 text-lg font-bold text-blue-400">🏘️ {grupoActivo}</h3>
             <p className="mt-1 text-sm text-slate-300">📍 {casaCabecera?.direccion || 'Sin dirección registrada'}</p>
-            {casaCabecera?.caracteristicas && <p className="mt-2 text-xs text-slate-400">{Object.entries(casaCabecera.caracteristicas).filter(([, value]) => value).map(([key, value]) => `${key.replace('_m2', ' m²')}: ${value}`).join(' · ')}</p>}
+            {casaCabecera?.caracteristicas && <p className="mt-2 text-xs text-slate-400">{Object.entries(casaCabecera.caracteristicas).filter(([, value]) => value).map(([key, value]) => (value === true ? key.charAt(0).toUpperCase() + key.slice(1) : `${key.replace('_m2', ' m²')}: ${value}`)).join(' · ')}</p>}
             {casaCabecera?.fotos?.length > 0 && <div className="mt-3 flex gap-2 overflow-x-auto">{casaCabecera.fotos.map((path) => <img key={path} src={getPropertyImageUrl(path)} alt={`Foto de ${grupoActivo}`} className="h-16 w-20 shrink-0 rounded-lg object-cover" />)}</div>}
             {casaCabecera?.observaciones && <p className="mt-1 text-xs text-slate-400">{casaCabecera.observaciones}</p>}
             <p className="mt-2 text-xs text-slate-500">{casasDelGrupo.length} {casasDelGrupo.length === 1 ? 'interior' : 'interiores'} · {ocupadasEnGrupo(casasDelGrupo)} ocupados</p>
@@ -402,7 +404,6 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
             const ocupada = contrato && contrato.estado === 'activo';
             const ultimoRegistro = ultimoRegistroPorCasa[casa.nombre];
             const expandido = expandedId === casa.id;
-            const diasRestantes = contrato?.fecha_fin ? diasHasta(contrato.fecha_fin) : null;
 
             return (
               <div
@@ -435,12 +436,14 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
                         <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-400">
                           <span>📅 {contrato.fecha_inicio} → {contrato.fecha_fin || 'Indefinido'}</span>
                           {contrato.telefono && <span>📞 {contrato.telefono}</span>}
+                          {contrato.arrendatario_dni && <span>🪪 DNI {contrato.arrendatario_dni}</span>}
+                          {contrato.monto_alquiler && <span>💵 S/ {contrato.monto_alquiler}</span>}
                         </div>
-                        {diasRestantes !== null && diasRestantes <= 30 && (
-                          <span className={`mt-1.5 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${diasRestantes < 0 ? 'border-red-500/40 bg-red-500/10 text-red-300' : 'border-amber-500/40 bg-amber-500/10 text-amber-300'}`}>
-                            {diasRestantes < 0 ? `⚠️ Vencido hace ${Math.abs(diasRestantes)}d` : `⚠️ Vence en ${diasRestantes}d`}
-                          </span>
-                        )}
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          {alertasContrato(contrato, ultimoRegistro).map((alerta) => (
+                            <span key={alerta.texto} className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${alertaClases[alerta.tone]}`}>⚠️ {alerta.texto}</span>
+                          ))}
+                        </div>
                       </>
                     ) : (
                       <p className="text-sm text-slate-500">Sin contrato registrado</p>

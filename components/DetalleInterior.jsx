@@ -1,9 +1,11 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '../lib/supabaseClient';
 import Modal from './Modal';
+import { useConfirm } from './ConfirmProvider';
+import { alertasContrato, alertaClases } from '../lib/alertas';
 import { getPrivateImageUrl, getPropertyImageUrl, uploadImages, validateImages } from '../lib/propertyStorage';
 
 const hoy = () => new Date().toISOString().slice(0, 10);
@@ -22,6 +24,9 @@ const formularioInicial = () => ({
   fechaInicio: hoy(),
   fechaFin: '',
   montoAlquiler: '',
+  diaPago: '',
+  titularDniFrontal: null,
+  titularDniPosterior: null,
   dniFrontal: null,
   dniPosterior: null,
 });
@@ -30,6 +35,8 @@ export default function DetalleInterior({ inmueble, casa, setActiveTab, setCasaS
   const [contratos, setContratos] = useState([]);
   const [registros, setRegistros] = useState([]);
   const [loading, setLoading] = useState(true);
+  const confirm = useConfirm();
+  const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState(formularioInicial);
@@ -72,6 +79,8 @@ export default function DetalleInterior({ inmueble, casa, setActiveTab, setCasaS
     const paths = contratos.flatMap((contrato) => [
       contrato.conyuge_dni_frontal_path,
       contrato.conyuge_dni_trasero_path,
+      contrato.arrendatario_dni_frontal_path,
+      contrato.arrendatario_dni_trasero_path,
     ]).filter(Boolean);
 
     async function cargarDocumentos() {
@@ -96,21 +105,24 @@ export default function DetalleInterior({ inmueble, casa, setActiveTab, setCasaS
     try {
       const tienePareja = formData.tienePareja === 'si';
       const nombreCompleto = `${formData.nombres.trim()} ${formData.apellidos.trim()}`.trim();
-      let frontalPath = null;
-      let traseroPath = null;
-
-      if (tienePareja) {
-        if (!formData.dniFrontal || !formData.dniPosterior) {
-          throw new Error('Adjunta las dos caras del DNI de la pareja.');
-        }
-        validateImages([formData.dniFrontal, formData.dniPosterior]);
-        [frontalPath, traseroPath] = await uploadImages('tenant-documents', inmueble.id, [
-          formData.dniFrontal,
-          formData.dniPosterior,
-        ]);
+      const editando = contratos.find((contrato) => contrato.id === editingId);
+      const subir = async (archivo) => {
+        if (!archivo) return null;
+        validateImages([archivo]);
+        const [path] = await uploadImages('tenant-documents', inmueble.id, [archivo]);
+        return path;
+      };
+      const titularFrontal = await subir(formData.titularDniFrontal);
+      const titularTrasero = await subir(formData.titularDniPosterior);
+      const parejaFrontal = tienePareja ? await subir(formData.dniFrontal) : null;
+      const parejaTrasero = tienePareja ? await subir(formData.dniPosterior) : null;
+      const frontalPath = tienePareja ? parejaFrontal || editando?.conyuge_dni_frontal_path || null : null;
+      const traseroPath = tienePareja ? parejaTrasero || editando?.conyuge_dni_trasero_path || null : null;
+      if (tienePareja && (!frontalPath || !traseroPath)) {
+        throw new Error('Adjunta las dos caras del DNI de la pareja.');
       }
 
-      const { data: contratoCreado, error } = await supabase.from('contratos').insert([{
+      const payload = {
         casa_id: inmueble.id,
         inquilino: nombreCompleto,
         nombres_completos: formData.nombres.trim(),
@@ -121,26 +133,69 @@ export default function DetalleInterior({ inmueble, casa, setActiveTab, setCasaS
         fecha_inicio: formData.fechaInicio,
         fecha_fin: formData.fechaFin || null,
         monto_alquiler: formData.montoAlquiler === '' ? null : Number(formData.montoAlquiler),
-        estado: 'activo',
+        dia_pago_mensual: formData.diaPago === '' ? null : String(formData.diaPago),
         tiene_pareja: tienePareja,
         conyuge_nombres: tienePareja ? formData.parejaNombres.trim() : null,
         conyuge_apellidos: tienePareja ? formData.parejaApellidos.trim() : null,
         conyuge_dni: tienePareja ? formData.parejaDni.trim() : null,
         conyuge_dni_frontal_path: frontalPath,
         conyuge_dni_trasero_path: traseroPath,
-      }]).select().single();
+        arrendatario_dni_frontal_path: titularFrontal || editando?.arrendatario_dni_frontal_path || null,
+        arrendatario_dni_trasero_path: titularTrasero || editando?.arrendatario_dni_trasero_path || null,
+      };
+
+      const consulta = editingId
+        ? supabase.from('contratos').update(payload).eq('id', editingId)
+        : supabase.from('contratos').insert([{ ...payload, estado: 'activo' }]);
+      const { data: contratoGuardado, error } = await consulta.select().single();
       if (error) throw error;
 
-      setContratos((actuales) => [contratoCreado, ...actuales]);
+      setContratos((actuales) => (editingId
+        ? actuales.map((contrato) => (contrato.id === editingId ? contratoGuardado : contrato))
+        : [contratoGuardado, ...actuales]));
+      setEditingId(null);
       setFormData(formularioInicial());
       setShowForm(false);
-      toast.success('Inquilino y contrato registrados.');
+      toast.success(editingId ? 'Inquilino actualizado.' : 'Inquilino y contrato registrados.');
     } catch (error) {
       console.error('Error guardando inquilino:', error.message);
       toast.error(`No se pudo guardar el inquilino: ${error.message}`);
     } finally {
       setSaving(false);
     }
+  };
+
+  const abrirEdicion = (contrato) => {
+    setEditingId(contrato.id);
+    setFormData({
+      ...formularioInicial(),
+      nombres: contrato.nombres_completos || contrato.inquilino || '',
+      apellidos: contrato.apellidos_completos || '',
+      dni: contrato.arrendatario_dni || '',
+      direccion: contrato.arrendatario_domicilio || '',
+      telefono: contrato.telefono || '',
+      tienePareja: contrato.tiene_pareja ? 'si' : 'no',
+      parejaNombres: contrato.conyuge_nombres || '',
+      parejaApellidos: contrato.conyuge_apellidos || '',
+      parejaDni: contrato.conyuge_dni || '',
+      fechaInicio: contrato.fecha_inicio || hoy(),
+      fechaFin: contrato.fecha_fin || '',
+      montoAlquiler: contrato.monto_alquiler ?? '',
+      diaPago: contrato.dia_pago_mensual || '',
+    });
+    setShowForm(true);
+  };
+
+  const eliminarInquilino = async (contrato) => {
+    const ok = await confirm({ title: 'Eliminar inquilino', message: `?Eliminar a ${contrato.inquilino} y su contrato? Esta acci?n no se puede deshacer.`, confirmLabel: 'Eliminar' });
+    if (!ok) return;
+    const { error } = await supabase.from('contratos').delete().eq('id', contrato.id);
+    if (error) {
+      toast.error(`No se pudo eliminar: ${error.message}`);
+      return;
+    }
+    setContratos((actuales) => actuales.filter((item) => item.id !== contrato.id));
+    toast.success('Inquilino eliminado.');
   };
 
   const irASeccion = (tab) => {
@@ -157,7 +212,7 @@ export default function DetalleInterior({ inmueble, casa, setActiveTab, setCasaS
           <h2 className="text-2xl font-bold text-white">{inmueble.nombre}</h2>
           <p className="mt-1 text-sm text-slate-400">{casa.nombre} · {inmueble.direccion || 'Ubicación no especificada'}</p>
         </div>
-        <button type="button" onClick={() => { setFormData(formularioInicial()); setShowForm(true); }} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500">
+        <button type="button" onClick={() => { setEditingId(null); setFormData(formularioInicial()); setShowForm(true); }} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500">
           + Agregar inquilino
         </button>
       </div>
@@ -180,8 +235,10 @@ export default function DetalleInterior({ inmueble, casa, setActiveTab, setCasaS
                 <div key={contrato.id} className="rounded-xl border border-slate-700 bg-slate-900/70 p-4">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div><p className="font-semibold text-white">{contrato.inquilino}</p><p className="mt-1 text-xs text-slate-400">DNI: {contrato.arrendatario_dni || 'No registrado'} · {contrato.arrendatario_domicilio || 'Sin dirección'}</p></div>
-                    <span className={`rounded-full px-2.5 py-1 text-xs ${contrato.estado === 'activo' ? 'bg-emerald-500/10 text-emerald-300' : 'bg-slate-700 text-slate-300'}`}>{contrato.estado}</span>
+                    <div className="flex items-center gap-2"><span className={`rounded-full px-2.5 py-1 text-xs ${contrato.estado === 'activo' ? 'bg-emerald-500/10 text-emerald-300' : 'bg-slate-700 text-slate-300'}`}>{contrato.estado}</span><button type="button" onClick={() => abrirEdicion(contrato)} className="rounded-md bg-slate-700/70 px-2 py-1 text-xs text-amber-300 hover:bg-amber-500/20">?? Editar</button><button type="button" onClick={() => eliminarInquilino(contrato)} className="rounded-md bg-slate-700/70 px-2 py-1 text-xs text-red-300 hover:bg-red-500/20">??? Eliminar</button></div>
                   </div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">{alertasContrato(contrato, registros[0]).map((alerta) => <span key={alerta.texto} className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${alertaClases[alerta.tone]}`}>?? {alerta.texto}</span>)}</div>
+                  {(contrato.arrendatario_dni_frontal_path || contrato.arrendatario_dni_trasero_path) && <div className="mt-2 flex gap-3">{[contrato.arrendatario_dni_frontal_path, contrato.arrendatario_dni_trasero_path].map((path, index) => path && <a key={path} href={documentUrls[path]} target="_blank" rel="noreferrer" className="text-xs text-blue-300 underline">{index === 0 ? 'Ver DNI titular (delantero)' : 'Ver DNI titular (trasero)'}</a>)}</div>}
                   <p className="mt-3 text-xs text-slate-400">Vigencia: {contrato.fecha_inicio} — {contrato.fecha_fin || 'Sin fecha de término'} · Alquiler: S/ {Number(contrato.monto_alquiler || 0).toFixed(2)}</p>
                   {contrato.tiene_pareja && <div className="mt-3 border-t border-slate-700 pt-3"><p className="text-sm font-medium text-slate-200">Cónyuge: {contrato.conyuge_nombres} {contrato.conyuge_apellidos}</p><p className="mt-1 text-xs text-slate-400">DNI: {contrato.conyuge_dni}</p><div className="mt-3 grid grid-cols-2 gap-3">{[contrato.conyuge_dni_frontal_path, contrato.conyuge_dni_trasero_path].map((path, index) => path && <a key={path} href={documentUrls[path]} target="_blank" rel="noreferrer" className="text-xs text-blue-300 underline">{index === 0 ? 'Ver DNI delantero' : 'Ver DNI trasero'}</a>)}</div></div>}
                 </div>
@@ -213,7 +270,7 @@ export default function DetalleInterior({ inmueble, casa, setActiveTab, setCasaS
         <article className="rounded-2xl border border-slate-700 bg-slate-800/80 p-5">
           <h3 className="mb-3 text-lg font-bold text-white">Características</h3>
           <dl className="grid grid-cols-2 gap-3 text-sm">
-            {Object.entries(inmueble.caracteristicas || {}).filter(([, value]) => value).map(([key, value]) => <div key={key}><dt className="text-xs capitalize text-slate-500">{key}</dt><dd className="mt-1 text-slate-200">{value}</dd></div>)}
+            {Object.entries(inmueble.caracteristicas || {}).filter(([, value]) => value).map(([key, value]) => <div key={key}><dt className="text-xs capitalize text-slate-500">{key}</dt><dd className="mt-1 text-slate-200">{value === true ? 'S?' : value}</dd></div>)}
           </dl>
           {inmueble.observaciones && <p className="mt-4 text-sm text-slate-400">{inmueble.observaciones}</p>}
         </article>
@@ -230,9 +287,9 @@ export default function DetalleInterior({ inmueble, casa, setActiveTab, setCasaS
       </div>
 
       {showForm && (
-        <Modal onClose={() => setShowForm(false)}>
+        <Modal onClose={() => { setShowForm(false); setEditingId(null); }}>
         <form onSubmit={guardarInquilino} className="my-auto max-h-[90vh] w-[min(94vw,44rem)] space-y-5 overflow-y-auto rounded-2xl border border-emerald-500/30 bg-slate-800 p-5">
-          <div><h3 className="text-lg font-bold text-white">Registrar inquilino</h3><p className="text-sm text-slate-400">Los datos crearán el contrato de alquiler para {inmueble.nombre}.</p></div>
+          <div><h3 className="text-lg font-bold text-white">{editingId ? 'Editar inquilino' : 'Registrar inquilino'}</h3><p className="text-sm text-slate-400">Los datos crearán el contrato de alquiler para {inmueble.nombre}.</p></div>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="text-xs text-slate-400">Nombres completos *<input required value={formData.nombres} onChange={(event) => actualizarCampo('nombres', event.target.value)} className={`${inputClass} mt-1`} /></label>
             <label className="text-xs text-slate-400">Apellidos completos *<input required value={formData.apellidos} onChange={(event) => actualizarCampo('apellidos', event.target.value)} className={`${inputClass} mt-1`} /></label>
@@ -243,16 +300,19 @@ export default function DetalleInterior({ inmueble, casa, setActiveTab, setCasaS
             <label className="text-xs text-slate-400">Fin del contrato<input type="date" value={formData.fechaFin} onChange={(event) => actualizarCampo('fechaFin', event.target.value)} className={`${inputClass} mt-1`} /></label>
             <label className="text-xs text-slate-400">Alquiler mensual (S/)<input min="0" step="0.01" type="number" value={formData.montoAlquiler} onChange={(event) => actualizarCampo('montoAlquiler', event.target.value)} className={`${inputClass} mt-1`} /></label>
             <label className="text-xs text-slate-400">¿Tiene pareja o está casado/a? *<select required value={formData.tienePareja} onChange={(event) => actualizarCampo('tienePareja', event.target.value)} className={`${inputClass} mt-1`}><option value="">Selecciona...</option><option value="si">Sí</option><option value="no">No</option></select></label>
+            <label className="text-xs text-slate-400">D?a de pago mensual de servicios<input min="1" max="31" type="number" value={formData.diaPago} onChange={(event) => actualizarCampo('diaPago', event.target.value)} className={`${inputClass} mt-1`} /></label>
+            <label className="text-xs text-slate-400">Foto DNI del inquilino - cara delantera<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => actualizarCampo('titularDniFrontal', event.target.files?.[0] || null)} className={`${inputClass} mt-1 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-700 file:px-3 file:py-1.5 file:text-xs`} /></label>
+            <label className="text-xs text-slate-400">Foto DNI del inquilino - cara trasera<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => actualizarCampo('titularDniPosterior', event.target.files?.[0] || null)} className={`${inputClass} mt-1 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-700 file:px-3 file:py-1.5 file:text-xs`} /></label>
           </div>
           {formData.tienePareja === 'si' && <div className="space-y-4 rounded-xl border border-slate-700 bg-slate-900/60 p-4"><h4 className="font-semibold text-white">Datos del cónyuge o pareja</h4><div className="grid gap-4 sm:grid-cols-2">
             <label className="text-xs text-slate-400">Nombres completos *<input required value={formData.parejaNombres} onChange={(event) => actualizarCampo('parejaNombres', event.target.value)} className={`${inputClass} mt-1`} /></label>
             <label className="text-xs text-slate-400">Apellidos completos *<input required value={formData.parejaApellidos} onChange={(event) => actualizarCampo('parejaApellidos', event.target.value)} className={`${inputClass} mt-1`} /></label>
             <label className="text-xs text-slate-400">DNI *<input required inputMode="numeric" pattern="[0-9]{8}" maxLength={8} value={formData.parejaDni} onChange={(event) => actualizarCampo('parejaDni', event.target.value.replace(/\D/g, ''))} className={`${inputClass} mt-1`} placeholder="8 dígitos" /></label>
-            <label className="text-xs text-slate-400">Foto DNI - cara delantera *<input required type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => actualizarCampo('dniFrontal', event.target.files?.[0] || null)} className={`${inputClass} mt-1 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-700 file:px-3 file:py-1.5 file:text-xs`} /></label>
-            <label className="text-xs text-slate-400">Foto DNI - cara trasera *<input required type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => actualizarCampo('dniPosterior', event.target.files?.[0] || null)} className={`${inputClass} mt-1 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-700 file:px-3 file:py-1.5 file:text-xs`} /></label>
+            <label className="text-xs text-slate-400">Foto DNI - cara delantera {editingId ? '' : '*'}<input required={!editingId} type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => actualizarCampo('dniFrontal', event.target.files?.[0] || null)} className={`${inputClass} mt-1 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-700 file:px-3 file:py-1.5 file:text-xs`} /></label>
+            <label className="text-xs text-slate-400">Foto DNI - cara trasera {editingId ? '' : '*'}<input required={!editingId} type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => actualizarCampo('dniPosterior', event.target.files?.[0] || null)} className={`${inputClass} mt-1 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-700 file:px-3 file:py-1.5 file:text-xs`} /></label>
           </div><p className="text-xs text-amber-300">Las imágenes deben ser JPG, PNG o WebP y pesar hasta 8 MB.</p></div>}
           {formData.tienePareja === 'si' && <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">La aplicación no tiene inicio de sesión. Aunque el bucket no es público, el acceso anónimo actual permite solicitar enlaces temporales a los documentos.</p>}
-          <div className="flex justify-end gap-3"><button type="button" onClick={() => setShowForm(false)} className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-300">Cancelar</button><button disabled={saving} className="rounded-xl bg-emerald-600 px-5 py-2 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Guardando...' : 'Guardar inquilino y contrato'}</button></div>
+          <div className="flex justify-end gap-3"><button type="button" onClick={() => { setShowForm(false); setEditingId(null); }} className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-300">Cancelar</button><button disabled={saving} className="rounded-xl bg-emerald-600 px-5 py-2 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Guardando...' : 'Guardar inquilino y contrato'}</button></div>
         </form>
         </Modal>
       )}

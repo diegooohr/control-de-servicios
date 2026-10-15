@@ -207,6 +207,12 @@ export default function RegistroServicios({ casaSeleccionada, setCasaSeleccionad
         </div>
 
         <form onSubmit={calcularYGuardar} className="space-y-6">
+          {casaSeleccionada && grupoSel ? (
+            <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 p-4 text-sm text-slate-200">
+              Departamento: <strong className="text-white">{casaSeleccionada}</strong> ? Casa: {grupoSel}
+              <p className="mt-1 text-xs text-slate-400">Para registrar otro departamento, ?brelo desde Casas.</p>
+            </div>
+          ) : (
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-sm text-slate-300">Casa</label>
@@ -223,6 +229,7 @@ export default function RegistroServicios({ casaSeleccionada, setCasaSeleccionad
               </select>
             </div>
           </div>
+          )}
           <div className="max-w-xs">
             <label className="mb-1 block text-sm text-slate-300">Mes de Facturación</label>
             <input
