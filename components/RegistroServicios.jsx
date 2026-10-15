@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { supabase } from '../lib/supabaseClient';
 import { descargarReciboPDF } from '../utils/pdfGenerator'; 
 
-export default function RegistroServicios({ casaSeleccionada, setCasaSeleccionada }) {
+export default function RegistroServicios({ casaSeleccionada, setCasaSeleccionada, setActiveTab }) {
   const [listaCasas, setListaCasas] = useState([]);
   const [grupoSel, setGrupoSel] = useState('');
   useEffect(() => {
@@ -198,6 +198,7 @@ export default function RegistroServicios({ casaSeleccionada, setCasaSeleccionad
       <div className="rounded-[26px] border border-slate-700/80 bg-slate-800/90 p-4 shadow-[0_24px_70px_rgba(2,6,23,0.55)] sm:p-6 lg:p-8">
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
+            <button type="button" onClick={() => setActiveTab?.('casas')} className="mb-3 text-sm font-semibold text-blue-300 hover:text-blue-200">← Volver a casas</button>
             <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.3em] text-blue-400">Operación</p>
             <h2 className="text-xl font-black uppercase tracking-wide text-white sm:text-2xl">
               Ingresar lecturas
@@ -209,8 +210,8 @@ export default function RegistroServicios({ casaSeleccionada, setCasaSeleccionad
         <form onSubmit={calcularYGuardar} className="space-y-6">
           {casaSeleccionada && grupoSel ? (
             <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 p-4 text-sm text-slate-200">
-              Departamento: <strong className="text-white">{casaSeleccionada}</strong> ? Casa: {grupoSel}
-              <p className="mt-1 text-xs text-slate-400">Para registrar otro departamento, ?brelo desde Casas.</p>
+              Departamento: <strong className="text-white">{casaSeleccionada}</strong> · Casa: {grupoSel}
+              <p className="mt-1 text-xs text-slate-400">Para registrar otro departamento, ábrelo desde Casas.</p>
             </div>
           ) : (
           <div className="grid gap-4 sm:grid-cols-2">

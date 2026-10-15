@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabaseClient';
 import { descargarReciboPDF } from '../utils/pdfGenerator';
 import { useConfirm } from './ConfirmProvider';
 
-export default function HistorialServicios({ casaSeleccionada }) {
+export default function HistorialServicios({ casaSeleccionada, setActiveTab }) {
   const confirm = useConfirm();
   const [registros, setRegistros] = useState([]);
   const [inquilinoPorCasa, setInquilinoPorCasa] = useState({});
@@ -80,6 +80,7 @@ export default function HistorialServicios({ casaSeleccionada }) {
       <div className="rounded-2xl border border-slate-700 bg-slate-800/90 p-4 shadow-xl shadow-slate-950/20 sm:p-6">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
+            <button type="button" onClick={() => setActiveTab?.('casas')} className="mb-3 text-sm font-semibold text-blue-300 hover:text-blue-200">← Volver a casas</button>
             <p className="mb-1 text-xs font-semibold uppercase tracking-[0.24em] text-blue-400">Registros</p>
             <h2 className="text-xl font-bold text-white sm:text-2xl">Historial de Consumos</h2>
           </div>

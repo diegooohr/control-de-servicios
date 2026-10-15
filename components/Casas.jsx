@@ -603,7 +603,7 @@ export default function Casas({ setActiveTab, setCasaSeleccionada }) {
                     </div>
 
                     <div>
-                      <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Ubicaci?n del interior en la casa</label>
+                      <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Ubicación del interior en la casa</label>
                       <input list="ubicaciones" type="text" value={formData.direccion} onChange={e => setFormData({ ...formData, direccion: e.target.value })} className="w-full rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" placeholder="Ej: Primer piso, fondo, azotea..." />
                       <datalist id="ubicaciones">
                         {['Primer piso', 'Segundo piso', 'Tercer piso', 'Azotea', 'Fondo', 'Frente', 'Lado derecho', 'Lado izquierdo'].map(u => <option key={u} value={u} />)}
